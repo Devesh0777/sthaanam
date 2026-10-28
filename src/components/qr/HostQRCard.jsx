@@ -14,20 +14,21 @@ export default function HostQRCard({ spot }) {
 
   useEffect(() => {
     if (!spot?.id) return
-    loadQr()
-  }, [spot?.id])
-
-  const loadQr = async () => {
-    setLoading(true)
-    try {
-      const data = await getSpotQr(spot.id)
-      setQrData(data)
-    } catch (err) {
-      console.warn('Could not load spot QR:', err)
-    } finally {
-      setLoading(false)
+    let active = true
+    getSpotQr(spot.id)
+      .then((data) => {
+        if (active) setQrData(data)
+      })
+      .catch((err) => {
+        console.warn('Could not load spot QR:', err)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
     }
-  }
+  }, [spot?.id])
 
   const handleRegenerate = async () => {
     setRegenerating(true)
@@ -92,7 +93,7 @@ export default function HostQRCard({ spot }) {
           <div className="h-6 w-6 rounded-md bg-accent flex items-center justify-center text-white font-black text-xs">
             P
           </div>
-          <span className="font-bold text-sm tracking-wide text-ink">Kumbh Park Spot Pass</span>
+          <span className="font-bold text-sm tracking-wide text-ink">Sthaanam Spot Pass</span>
         </div>
 
         <div className="mx-auto w-fit rounded-xl bg-white p-4 shadow-md border border-slate-200">

@@ -1,0 +1,202 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  HOST
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum GateEventType {
+  ENTRY
+  EXIT
+  DENIED
+}
+
+model User {
+  id           String       @id @default(uuid())
+  name         String
+  email        String       @unique
+  phone        String?
+  passwordHash String
+  role         Role         @default(USER)
+  status       UserStatus   @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  refreshTokens RefreshToken[]
+  spaces        Space[]        @relation("HostSpaces")
+  bookings      Booking[]      @relation("UserBookings")
+
+  @@index([email])
+  @@index([role])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  @@index([token])
+  @@index([userId])
+}
+
+model Zone {
+  id        String     @id
+  name      String
+  short     String
+  lat       Float
+  lng       Float
+  blurb     String?
+  melaNote  String?
+  tag       String?
+  ghatName  String?
+  ghatLat   Float?
+  ghatLng   Float?
+  createdAt DateTime   @default(now())
+
+  spaces    Space[]
+  landmarks Landmark[]
+}
+
+model Landmark {
+  id        String   @id @default(uuid())
+  name      String
+  zoneId    String
+  zone      Zone     @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  lat       Float
+  lng       Float
+  type      String   @default("GHAT")
+  createdAt DateTime @default(now())
+
+  @@index([zoneId])
+}
+
+model Space {
+  id             String    @id @default(uuid())
+  title          String
+  description    String?
+  address        String
+  zoneId         String
+  zone           Zone      @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  lat            Float
+  lng            Float
+  hostId         String
+  host           User      @relation("HostSpaces", fields: [hostId], references: [id], onDelete: Cascade)
+
+  // Financials strictly in integer paise (e.g. Rs 40/hr -> 4000 paise)
+  priceHourPaise Int       @default(4000)
+  priceDayPaise  Int       @default(25000)
+
+  capacity       Int       @default(1)
+  spotsLeft      Int       @default(1)
+  rating         Float     @default(5.0)
+  reviewsCount   Int       @default(0)
+  vehicles       String[]  @default(["2w", "car"])
+  features       String[]  @default(["covered", "gate"])
+  surface        String?
+  clearanceM     Float?
+  checkInFrom    String    @default("00:00")
+  checkOutBy     String    @default("24:00")
+  isInstantBook  Boolean   @default(true)
+  isVerified     Boolean   @default(true)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  bookings       Booking[]
+
+  @@index([zoneId])
+  @@index([hostId])
+  @@index([isActive])
+}
+
+model Booking {
+  id              String        @id @default(uuid())
+  code            String        @unique
+  userId          String
+  user            User          @relation("UserBookings", fields: [userId], references: [id], onDelete: Cascade)
+  spaceId         String
+  space           Space         @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  vehicleType     String        @default("car")
+  vehicleNumber   String?
+  startTime       DateTime
+  endTime         DateTime
+
+  // Financials in integer paise
+  totalPricePaise Int
+
+  status          BookingStatus @default(CONFIRMED)
+  checkInTime     DateTime?
+  checkOutTime    DateTime?
+  qrToken         String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  payment         Payment?
+  gateEvents      GateEvent[]
+
+  @@index([userId])
+  @@index([spaceId])
+  @@index([status])
+  @@index([code])
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  bookingId      String        @unique
+  booking        Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  // Financials in integer paise
+  amountPaise    Int
+  currency       String        @default("INR")
+  method         String        @default("UPI")
+  status         PaymentStatus @default(COMPLETED)
+  transactionRef String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model GateEvent {
+  id        String        @id @default(uuid())
+  bookingId String
+  booking   Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  eventType GateEventType
+  scannedAt DateTime      @default(now())
+  scannedBy String?
+  notes     String?
+
+  @@index([bookingId])
+}

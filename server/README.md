@@ -1,26 +1,26 @@
-# Nashik Parking Connect — API
+# Sthanam (formerly Kumbh Park) — Backend API
 
-Node/Express + PostgreSQL REST API for the Kumbh Mela parking marketplace.
-Pilgrims search and book parking bays, hosts list and manage plots, admins verify
-listings and monitor occupancy.
+Node/Express + PostgreSQL with Prisma ORM and real authentication (JWT + httpOnly cookie session rotation).
 
-Runs on **PostGIS when available, and on a plain Postgres install otherwise** —
-geospatial search falls back to an inline haversine expression, so nothing blocks
-on an extension install.
+### Seed Accounts & Credentials
+
+| Role | Name | Email | Password | Access Area |
+| --- | --- | --- | --- | --- |
+| **ADMIN** | Kumbh Controller | `admin@sthanam.gov.in` | `Admin@Sthanam2027` | `/admin` |
+| **HOST** | Sunita Deshmukh | `sunita@sthanam.in` | `Host@Sthanam2027` | `/host` |
+| **USER** | Devv | `devv@sthanam.in` | `User@Sthanam2027` | `/app` & `/search` |
 
 ---
 
-## Quick start
+## Quick start (Prisma + PostgreSQL)
 
 ```bash
 cd server
-npm install                 # already installed in this repo
-cp .env.example .env        # then edit DATABASE_URL and the secrets
-createdb nashik_parking     # or use an existing database
-
-npm run migrate             # applies sql/001_init.sql
-npm run seed                # demo zones, users, spots and bays
-npm run dev                 # http://localhost:4000
+npm install
+# Ensure .env has your PostgreSQL DATABASE_URL
+node ./node_modules/prisma/build/index.js db push
+npm run prisma:seed
+npm run dev
 ```
 
 Then in another terminal:

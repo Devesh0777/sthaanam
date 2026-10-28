@@ -1,8 +1,6 @@
-# Nashik Parking Connect — Frontend
+# Sthaanam — Frontend
 
-Mobile-first React app for finding and booking private parking during the Kumbh Mela, plus
-host and admin surfaces. The UI follows the Ola/Uber pattern: map first, pill filters,
-card lists, bottom sheets and a single primary CTA per screen.
+Mobile-first React app for finding and booking private parking in Nashik during the Kumbh Mela and for everyday mobility, plus host and admin surfaces. The UI follows the Ola/Uber pattern: map first, pill filters, card lists, bottom sheets and a single primary CTA per screen.
 
 Design, motion and map behaviour follow `nashik-parking-connect-ui-animation-spec.md`.
 

@@ -78,6 +78,32 @@ export default function FilterSheet({ open, onClose, resultCount = 0, zones = []
           </div>
         </Group>
 
+        <Group title="Distance from you">
+          {!filters.origin ? (
+            <p className="text-[12px] text-muted font-medium italic">
+              Turn on location or search an area first
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: 'Any', value: null },
+                { label: '1 km', value: 1 },
+                { label: '2 km', value: 2 },
+                { label: '5 km', value: 5 },
+                { label: '10 km', value: 10 },
+              ].map((opt) => (
+                <Chip
+                  key={opt.label}
+                  active={filters.radiusKm === opt.value}
+                  onClick={() => patchFilters({ radiusKm: opt.value })}
+                >
+                  {opt.label}
+                </Chip>
+              ))}
+            </div>
+          )}
+        </Group>
+
         <Group title="Vehicle">
           <div className="grid grid-cols-3 gap-2">
             {VEHICLE_TYPES.map((type) => (

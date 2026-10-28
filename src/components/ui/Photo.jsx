@@ -15,15 +15,17 @@ export default function Photo({
   rounded = 'rounded-[14px]',
 }) {
   const initialUri = useMemo(() => src ?? photoUri(seed, label, index), [src, seed, label, index])
+  const [prevUri, setPrevUri] = useState(initialUri)
   const [currentSrc, setCurrentSrc] = useState(initialUri)
   const [hasError, setHasError] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
-  useEffect(() => {
+  if (prevUri !== initialUri) {
+    setPrevUri(initialUri)
     setCurrentSrc(initialUri)
     setHasError(false)
     setLoaded(false)
-  }, [initialUri])
+  }
 
   const handleError = () => {
     if (!hasError) {

@@ -6,6 +6,7 @@ import morgan from 'morgan'
 import rateLimit from 'express-rate-limit'
 import swaggerUi from 'swagger-ui-express'
 
+import cookieParser from 'cookie-parser'
 import env from './config/env.js'
 import { hasPostgis } from './config/postgis.js'
 import buildSpec from './config/swagger.js'
@@ -13,7 +14,7 @@ import { ping } from './config/db.js'
 import { logger } from './lib/logger.js'
 import { errorHandler, notFound } from './middleware/error.js'
 
-import authRoutes from './modules/auth.routes.js'
+import realAuthRoutes from './modules/real-auth.routes.js'
 import spotsRoutes from './modules/spots.routes.js'
 import zonesRoutes from './modules/zones.routes.js'
 import bookingsRoutes from './modules/bookings.routes.js'
@@ -30,15 +31,25 @@ export function createApp() {
   app.set('trust proxy', env.trustProxy)
   app.disable('x-powered-by')
 
+  const clientOrigin = process.env.CLIENT_URL || env.corsOrigin || 'http://localhost:5173'
+
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }))
   app.use(
     cors({
-      origin: env.corsOrigin,
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true)
+        if (/^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(origin)) {
+          return callback(null, true)
+        }
+        if (origin === clientOrigin) return callback(null, true)
+        callback(null, true)
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Service-Key'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Service-Key', 'Cookie'],
     }),
   )
+  app.use(cookieParser())
   app.use(compression())
   app.use(express.json({ limit: '1mb' }))
   app.use(express.urlencoded({ extended: false, limit: '1mb' }))
@@ -72,7 +83,9 @@ export function createApp() {
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(buildSpec(), { customSiteTitle: 'Nashik Parking Connect API' }))
   app.get('/openapi.json', (req, res) => res.json(buildSpec()))
 
-  app.use('/api/v1/auth', authRoutes)
+  // Auth routes for real PostgreSQL + Prisma authentication
+  app.use('/auth', realAuthRoutes)
+  app.use('/api/v1/auth', realAuthRoutes)
   app.use('/api/v1/spots', spotsRoutes)
   app.use('/api/v1/zones', zonesRoutes)
   app.use('/api/v1/bookings', bookingsRoutes)

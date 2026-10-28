@@ -227,6 +227,12 @@ export const SATELLITE_STYLE = {
 
 export const BASEMAPS = [
   {
+    id: 'positron',
+    label: 'Positron',
+    light: 'https://tiles.openfreemap.org/styles/positron',
+    dark: 'https://tiles.openfreemap.org/styles/dark',
+  },
+  {
     id: 'osm',
     label: 'Standard',
     light: OSM_STYLE,
@@ -243,12 +249,6 @@ export const BASEMAPS = [
     label: 'Satellite',
     light: SATELLITE_STYLE,
     dark: SATELLITE_STYLE,
-  },
-  {
-    id: 'positron',
-    label: 'Positron',
-    light: 'https://tiles.openfreemap.org/styles/positron',
-    dark: 'https://tiles.openfreemap.org/styles/dark',
   },
 ]
 

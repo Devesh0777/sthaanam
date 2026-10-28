@@ -94,9 +94,9 @@ export default function MapLayerToggle({
   }
 
   return (
-    <div className={cn('absolute bottom-3 left-3 z-[500]', className)}>
+    <div className={cn('relative z-[500]', className)}>
       {isOpen ? (
-        <div className="flex w-80 max-w-[calc(100vw-24px)] flex-col rounded-2xl border border-line bg-surface/98 shadow-2xl backdrop-blur-md">
+        <div className="flex w-80 max-w-[calc(100vw-24px)] flex-col rounded-2xl border border-white/60 glass-panel shadow-2xl backdrop-blur-xl">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-line px-3.5 py-3">
             <div className="flex items-center gap-2">

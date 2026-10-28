@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import { currentHost } from '@/api/mock/hosts'
 import { isMock } from '@/api'
+import { useAuth } from './AuthContext'
 
 const AppContext = createContext(null)
 
@@ -13,8 +14,11 @@ export const DEFAULT_FILTERS = {
   plan: 'hour',
   instant: false,
   onlyAvailable: false,
-  openNow: true,
+  openNow: false,
   sort: 'recommended',
+  origin: null,
+  originLabel: null,
+  radiusKm: null,
 }
 
 // Default Demo User Account "Devv"
@@ -23,23 +27,29 @@ const DEFAULT_DEMO_USER = {
   name: 'Devv',
   initials: 'DV',
   phone: '+91 98200 12345',
-  email: 'devv@kumbhpark.com',
+  email: 'devv@sthanam.in',
   homeZone: 'ramkund',
   role: 'user',
   isDemo: true,
 }
 
 export function AppProvider({ children }) {
-  const [userRole, setUserRoleState] = useState('user') // 'user' | 'host' | 'admin'
-  const [user, setUser] = useState(DEFAULT_DEMO_USER)
+  const auth = useAuth()
+  const isDemo = import.meta.env.VITE_DEMO_MODE === 'true'
+
+  const [demoUserRole, setDemoUserRole] = useState('user')
+  const [demoUser, setDemoUser] = useState(DEFAULT_DEMO_USER)
   const [host] = useState(() => currentHost)
   const [saved, setSaved] = useState(() => new Set(['s6']))
   const [filters, setFilters] = useState(DEFAULT_FILTERS)
 
+  const activeUser = auth?.user || (isDemo ? demoUser : null)
+  const activeRole = auth?.user?.role?.toLowerCase() || (isDemo ? demoUserRole : null)
+
   const setUserRole = useCallback((role, userData) => {
-    setUserRoleState(role)
+    setDemoUserRole(role)
     if (userData) {
-      setUser((prev) => ({
+      setDemoUser((prev) => ({
         ...prev,
         ...userData,
         initials: userData.name
@@ -71,9 +81,9 @@ export function AppProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      user,
-      setUser,
-      userRole,
+      user: activeUser,
+      setUser: setDemoUser,
+      userRole: activeRole,
       setUserRole,
       host,
       saved,
@@ -84,7 +94,7 @@ export function AppProvider({ children }) {
       resetFilters,
       isMock,
     }),
-    [user, userRole, setUserRole, host, saved, toggleSaved, filters, patchFilters, resetFilters],
+    [activeUser, activeRole, setUserRole, host, saved, toggleSaved, filters, patchFilters, resetFilters],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

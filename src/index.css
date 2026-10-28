@@ -1,4 +1,6 @@
 @import 'tailwindcss';
+@import 'maplibre-gl/dist/maplibre-gl.css';
+
 
 /* ------------------------------------------------------------------
    Design tokens — from nashik-parking-connect-ui-animation-spec.md §1
@@ -34,6 +36,13 @@
 
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-heading: 'Lexend', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+  --font-brush: 'Permanent Marker', cursive, sans-serif;
+
+  --color-sage-mist: #a5bba7;
+  --color-cream-yellow: #e6e2c3;
+  --color-wheat-field: #cdbf93;
+  --color-asphalt: #181d1a;
 
   --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
 
@@ -50,29 +59,89 @@
 }
 
 @keyframes qr-box-1 {
-  0% { transform: scale(0); opacity: 0; }
-  60% { transform: scale(1.15); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
+
 @keyframes qr-box-2 {
-  0%, 20% { transform: scale(0); opacity: 0; }
-  75% { transform: scale(1.15); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
+
+  0%,
+  20% {
+    transform: scale(0);
+    opacity: 0;
+  }
+
+  75% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
+
 @keyframes qr-box-3 {
-  0%, 40% { transform: scale(0); opacity: 0; }
-  85% { transform: scale(1.15); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
+
+  0%,
+  40% {
+    transform: scale(0);
+    opacity: 0;
+  }
+
+  85% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
+
 @keyframes qr-box-4 {
-  0%, 60% { transform: scale(0); opacity: 0; }
-  95% { transform: scale(1.15); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
+
+  0%,
+  60% {
+    transform: scale(0);
+    opacity: 0;
+  }
+
+  95% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes badge-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 72, 59, 0); }
-  50% { box-shadow: 0 0 0 5px rgba(217, 72, 59, 0.18); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(217, 72, 59, 0);
+  }
+
+  50% {
+    box-shadow: 0 0 0 5px rgba(217, 72, 59, 0.18);
+  }
 }
 
 @keyframes stamp-pop {
@@ -80,10 +149,12 @@
     transform: scale(2.2) rotate(-6deg);
     opacity: 0;
   }
+
   65% {
     transform: scale(0.95) rotate(-2deg);
     opacity: 1;
   }
+
   100% {
     transform: scale(1) rotate(0deg);
     opacity: 1;
@@ -95,6 +166,7 @@
     transform: translateY(16px) scale(0.96);
     opacity: 0;
   }
+
   100% {
     transform: translateY(0) scale(1);
     opacity: 1;
@@ -106,13 +178,16 @@
     transform: translateY(-30px) rotate(-1.8deg);
     opacity: 0;
   }
+
   60% {
     transform: translateY(4px) rotate(0.8deg);
     opacity: 1;
   }
+
   85% {
     transform: translateY(-1px) rotate(-0.3deg);
   }
+
   100% {
     transform: translateY(0) rotate(0deg);
     opacity: 1;
@@ -123,6 +198,7 @@
   0% {
     background-position: 200% 0;
   }
+
   100% {
     background-position: -200% 0;
   }
@@ -132,9 +208,11 @@
   0% {
     box-shadow: 0 0 0 0 rgb(214 138 0 / 0.5);
   }
+
   70% {
     box-shadow: 0 0 0 8px rgb(214 138 0 / 0);
   }
+
   100% {
     box-shadow: 0 0 0 0 rgb(214 138 0 / 0);
   }
@@ -144,9 +222,11 @@
   0% {
     box-shadow: 0 0 0 0 rgb(214 69 69 / 0.5);
   }
+
   70% {
     box-shadow: 0 0 0 8px rgb(214 69 69 / 0);
   }
+
   100% {
     box-shadow: 0 0 0 0 rgb(214 69 69 / 0);
   }
@@ -156,6 +236,7 @@
   from {
     transform: translateY(100%);
   }
+
   to {
     transform: translateY(0);
   }
@@ -165,6 +246,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -175,6 +257,7 @@
     opacity: 0;
     transform: scale(0.8);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -186,6 +269,7 @@
     opacity: 0;
     transform: translateX(28px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -197,6 +281,7 @@
     opacity: 0;
     transform: translateX(-28px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -208,6 +293,7 @@
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -219,10 +305,12 @@
     transform: scale(0.4);
     opacity: 0;
   }
+
   55% {
     transform: scale(1.12);
     opacity: 1;
   }
+
   100% {
     transform: scale(1);
     opacity: 1;
@@ -276,15 +364,18 @@
   .pb-safe {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
+
   .bottom-safe {
     bottom: max(0px, env(safe-area-inset-bottom));
   }
+
   .pt-safe {
     padding-top: max(0.75rem, env(safe-area-inset-top));
   }
 }
 
 @layer components {
+
   /* Scroll-triggered reveal — spec §3.2 */
   .reveal {
     opacity: 0;
@@ -311,6 +402,7 @@
   .no-scrollbar {
     scrollbar-width: none;
   }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -318,6 +410,7 @@
   .card-shadow {
     box-shadow: var(--shadow-card);
   }
+
   .sheet-shadow {
     box-shadow: var(--shadow-sheet);
   }
@@ -425,13 +518,16 @@
 .pin--available {
   border-color: var(--color-success);
 }
+
 .pin--filling {
   border-color: var(--color-warning);
 }
+
 .pin--full {
   border-color: var(--color-danger);
   opacity: 0.75;
 }
+
 .pin--selected {
   background: var(--color-accent);
   border-color: var(--color-accent);
@@ -439,6 +535,7 @@
   transform: translate(-50%, -100%) scale(1.08);
   z-index: 500;
 }
+
 .pin--selected::after {
   border-color: var(--color-accent);
 }
@@ -557,6 +654,7 @@
   border-radius: 0 16px 0 8px !important;
   transition: all 0.15s ease !important;
 }
+
 .maplibregl-popup-close-button:hover {
   background: var(--color-surface-sunken) !important;
   color: var(--color-text) !important;
@@ -565,6 +663,7 @@
 .maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
   border-top-color: var(--color-surface) !important;
 }
+
 .maplibregl-popup-anchor-top .maplibregl-popup-tip {
   border-bottom-color: var(--color-surface) !important;
 }
@@ -648,10 +747,12 @@
   border-top: 1px solid var(--color-line);
   padding-top: 8px;
 }
+
 .nm-popup-table dt {
   color: var(--color-muted);
   font-weight: 500;
 }
+
 .nm-popup-table dd {
   margin: 0;
   color: var(--color-text);
@@ -675,6 +776,358 @@
 }
 
 /* ------------------------------------------------------------------
+   Sthanam Premium Map Marker System & Urban Mobility UI
+------------------------------------------------------------------- */
+
+/* Base Price Marker Container */
+.kp-marker-wrapper {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+  user-select: none;
+  z-index: 10;
+}
+
+.kp-marker-wrapper:hover {
+  transform: translate(-50%, -105%) scale(1.06);
+  z-index: 100 !important;
+}
+
+/* Premium Price Pill Marker */
+.kp-price-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  background-color: #F5F3ED;
+  color: #292C2B;
+  border: 1.5px solid #D2D3D1;
+  border-radius: 999px;
+  font-family: var(--font-mono, monospace), var(--font-sans, sans-serif);
+  font-weight: 800;
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
+  box-shadow: 0 4px 14px rgba(41, 44, 43, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08);
+  white-space: nowrap;
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Pointer Tip below pill */
+.kp-price-chip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  border-right: 1.5px solid inherit;
+  border-bottom: 1.5px solid inherit;
+  transform: translateX(-50%) rotate(45deg);
+  border-bottom-right-radius: 2px;
+}
+
+/* Status Accents */
+.kp-price-chip__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.kp-price-chip--available .kp-price-chip__dot {
+  background-color: #006341;
+  box-shadow: 0 0 0 2px rgba(0, 99, 65, 0.2);
+}
+
+.kp-price-chip--limited .kp-price-chip__dot {
+  background-color: #F2B544;
+  box-shadow: 0 0 0 2px rgba(242, 181, 68, 0.25);
+}
+
+.kp-price-chip--full {
+  background-color: #EAE8E2;
+  color: #717573;
+  border-color: #D2D3D1;
+  opacity: 0.85;
+}
+
+.kp-price-chip--full .kp-price-chip__dot {
+  background-color: #9CA3AF;
+}
+
+/* Selected State: Charcoal + Muted Yellow Accent */
+.kp-price-chip--selected {
+  background-color: #292C2B !important;
+  color: #FFFFFF !important;
+  border-color: #FFD900 !important;
+  box-shadow: 0 8px 24px rgba(41, 44, 43, 0.35), 0 0 0 2px rgba(255, 217, 0, 0.4) !important;
+  transform: scale(1.08);
+  z-index: 500;
+}
+
+.kp-price-chip--selected .kp-price-chip__dot {
+  background-color: #FFD900 !important;
+  box-shadow: 0 0 0 2px rgba(255, 217, 0, 0.5);
+}
+
+.kp-price-chip--selected::after {
+  background-color: #292C2B !important;
+  border-color: #FFD900 !important;
+}
+
+/* De-emphasized State (when filtered out) */
+.kp-price-chip--deemphasized {
+  opacity: 0.35 !important;
+  filter: grayscale(0.8);
+  transform: scale(0.92);
+}
+
+/* Intelligent Cluster Marker */
+.kp-cluster-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: #292C2B;
+  color: #F5F3ED;
+  border: 1.5px solid #FFD900;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 12px;
+  box-shadow: 0 6px 20px rgba(41, 44, 43, 0.28);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transform: translate(-50%, -50%);
+}
+
+.kp-cluster-chip:hover {
+  transform: translate(-50%, -50%) scale(1.08);
+  box-shadow: 0 8px 26px rgba(41, 44, 43, 0.38);
+}
+
+.kp-cluster-chip__badge {
+  background-color: #FFD900;
+  color: #292C2B;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  font-family: var(--font-mono);
+}
+
+/* Modern Status Badges */
+.kp-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.kp-status-badge--available {
+  background-color: rgba(0, 99, 65, 0.12);
+  color: #006341;
+}
+
+.kp-status-badge--limited {
+  background-color: rgba(242, 181, 68, 0.2);
+  color: #B45309;
+}
+
+.kp-status-badge--instant {
+  background-color: rgba(255, 217, 0, 0.3);
+  color: #292C2B;
+}
+
+.kp-status-badge--verified {
+  background-color: rgba(0, 99, 65, 0.14);
+  color: #006341;
+}
+
+.kp-status-badge--full {
+  background-color: #D2D3D1;
+  color: #292C2B;
+}
+
+/* Selected Parking Floating Card Animation */
+.kp-floating-card-enter {
+  animation: kp-card-slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes kp-card-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* User Location Navigation Beacon */
+.kp-user-beacon {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 500;
+}
+
+.kp-user-beacon__dot {
+  width: 15px;
+  height: 15px;
+  border-radius: 9999px;
+  background-color: #2563EB;
+  border: 3px solid #FFFFFF;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.6);
+  position: relative;
+  z-index: 2;
+  transition: transform 0.2s ease;
+}
+
+.kp-user-beacon:hover .kp-user-beacon__dot {
+  transform: scale(1.15);
+}
+
+.kp-user-beacon__pulse {
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  background-color: rgba(37, 99, 235, 0.4);
+  animation: kp-user-beacon-pulse 2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+  z-index: 1;
+}
+
+@keyframes kp-user-beacon-pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.kp-user-beacon__label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  white-space: nowrap;
+  background: #181B1A;
+  color: #FFFFFF;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+/* Animated Journey Car Marker */
+.kp-map-car {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
+  will-change: transform;
+  z-index: 600;
+}
+
+.kp-map-car svg {
+  overflow: visible;
+}
+
+/* Destination arrival pulse ring */
+.kp-arrived-pulse {
+  animation: kp-dest-pulse 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+
+@keyframes kp-dest-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 217, 0, 0.7);
+  }
+
+  70% {
+    box-shadow: 0 0 0 16px rgba(255, 217, 0, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 217, 0, 0);
+  }
+}
+
+.kp-user-beacon__acc {
+  font-size: 9px;
+  font-weight: 500;
+  color: #93c5fd;
+  margin-left: 3px;
+  opacity: 0.9;
+}
+
+/* Navigation Directional Arrow Marker (Turn-by-turn HUD) */
+.kp-nav-arrow-marker {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 610;
+}
+
+.kp-nav-arrow-wrapper {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kp-nav-arrow-halo {
+  position: absolute;
+  inset: 2px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255, 217, 0, 0.45) 0%, rgba(255, 217, 0, 0) 72%);
+  animation: kp-nav-arrow-pulse 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+@keyframes kp-nav-arrow-pulse {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.9;
+  }
+
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------------
    Reduced motion — spec §3.1
 ------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
@@ -691,7 +1144,9 @@
   .skeleton,
   .live-dot,
   .animate-shimmer,
-  .animate-pulse-dot {
+  .animate-pulse-dot,
+  .kp-nav-arrow-halo,
+  .kp-user-beacon__pulse {
     animation: none !important;
   }
 
@@ -704,5 +1159,78 @@
   .sheet,
   .sheet-backdrop {
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ------------------------------------------------------------------
+   STHAANAM UNIFIED GLASS DESIGN TOKENS & UTILITIES (Phase 2)
+------------------------------------------------------------------- */
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-bg-strong: rgba(255, 255, 255, 0.78);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-border-dark: rgba(255, 255, 255, 0.12);
+  --glass-blur: blur(14px) saturate(140%);
+  --glass-shadow: 0 4px 20px -2px rgba(23, 33, 43, 0.05), 0 2px 6px -1px rgba(23, 33, 43, 0.03);
+  --glass-shadow-lg: 0 16px 40px -8px rgba(23, 33, 43, 0.1), 0 4px 12px -2px rgba(23, 33, 43, 0.04);
+  --glass-radius: 16px;
+  --glass-radius-lg: 18px;
+
+  /* Dark variant for charcoal road journey */
+  --glass-bg-dark: rgba(20, 26, 24, 0.5);
+  --glass-bg-dark-strong: rgba(20, 26, 24, 0.78);
+  --glass-shadow-dark: 0 8px 32px 0 rgba(0, 0, 0, 0.35);
+}
+
+.glass-panel {
+  background-color: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--glass-radius);
+}
+
+.glass-panel-strong {
+  background-color: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--glass-radius);
+}
+
+.glass-panel-dark {
+  background-color: var(--glass-bg-dark);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border-dark);
+  box-shadow: var(--glass-shadow-dark);
+  color: #FAF7F2;
+  border-radius: var(--glass-radius);
+}
+
+/* Fallbacks for non-backdrop-filter and reduced transparency */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass-panel,
+  .glass-panel-strong {
+    background-color: rgba(251, 251, 244, 0.95);
+  }
+  .glass-panel-dark {
+    background-color: rgba(20, 26, 24, 0.95);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass-panel,
+  .glass-panel-strong {
+    background-color: rgba(251, 251, 244, 0.96) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .glass-panel-dark {
+    background-color: rgba(20, 26, 24, 0.96) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 }

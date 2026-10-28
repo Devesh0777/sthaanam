@@ -1,5 +1,5 @@
 /**
- * Authentic Parking Spot, Ghat & Temple Photography for Kumbh Park (Nashik Kumbh Mela)
+ * Authentic Parking Spot, Ghat & Temple Photography for Sthanam (Nashik Kumbh Mela)
  * High-resolution imagery representing real Indian residential driveways, gated compounds,
  * temple courtyards, Godavari river ghats, and secure plots in Nashik & Trimbakeshwar.
  *
@@ -159,7 +159,7 @@ export function fallbackIllustrationUri(seed, label = 'PARKING SPOT') {
       <circle cx="200" cy="100" r="40" fill="#ffffff" opacity="0.1"/>
       <path d="M185 80h18a15 15 0 0 1 0 30h-18v18h-8V80h8zm0 8v14h18a7 7 0 0 0 0-14h-18z" fill="#ffffff"/>
       <text x="200" y="170" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#ffffff" opacity="0.8" text-anchor="middle">${label}</text>
-      <text x="200" y="195" font-family="system-ui, sans-serif" font-size="11" fill="#ffffff" opacity="0.5" text-anchor="middle">KUMBH PARK VERIFIED</text>
+      <text x="200" y="195" font-family="system-ui, sans-serif" font-size="11" fill="#ffffff" opacity="0.5" text-anchor="middle">STHAANAM VERIFIED</text>
     </svg>
   `)}`
 }

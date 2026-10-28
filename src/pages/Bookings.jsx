@@ -1,21 +1,20 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { cancelBooking, getMyBookings } from '@/api'
-import { dateTime, durationLabel, money, relativeDay, time } from '@/lib/format'
+import { durationLabel, money, relativeDay, time } from '@/lib/format'
 import { BOOKING_STATUS } from '@/lib/status'
-import { qrPayload } from '@/lib/id'
 import { useAsync } from '@/hooks/useAsync'
 import { PageShell, PageHeader } from '@/components/layout/PageShell'
 import Photo from '@/components/ui/Photo'
 import Icon from '@/components/ui/Icon'
 import Button from '@/components/ui/Button'
-import QRCode from '@/components/ui/QRCode'
 import StatusPill from '@/components/ui/StatusPill'
 import { SegmentedTabs, TextLink } from '@/components/ui/Chip'
 import Sheet from '@/components/ui/Sheet'
 import { EmptyState, ErrorState } from '@/components/ui/Feedback'
 import { useToast } from '@/components/ui/Toast'
 import DigitalParkingTicket from '@/components/booking/DigitalParkingTicket'
+import BookingSheet from '@/components/booking/BookingSheet'
 
 import QRScannerModal from '@/components/qr/QRScannerModal'
 
@@ -27,6 +26,31 @@ const TABS = [
 
 const VEHICLE_ICON = { '2w': 'bike', car: 'car', bus: 'bus' }
 
+function BookingCardSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-[var(--radius-card)] bg-surface card-shadow p-3 animate-pulse">
+      <div className="flex gap-3">
+        <div className="size-[88px] shrink-0 rounded-[12px] bg-[#E8E1D6]/60" />
+        <div className="min-w-0 flex-1 space-y-2 py-1">
+          <div className="flex items-center justify-between gap-2">
+            <div className="h-4 w-1/2 rounded bg-[#E8E1D6]/70" />
+            <div className="h-5 w-16 rounded-full bg-[#E8E1D6]/50" />
+          </div>
+          <div className="h-3 w-3/4 rounded bg-[#E8E1D6]/50" />
+          <div className="mt-2 space-y-1.5 pt-1">
+            <div className="h-3 w-2/3 rounded bg-[#E8E1D6]/50" />
+            <div className="h-3 w-1/3 rounded bg-[#E8E1D6]/50" />
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center justify-between border-t border-[#E8E1D6]/60 pt-2.5">
+        <div className="h-4 w-20 rounded bg-[#E8E1D6]/50" />
+        <div className="h-8 w-24 rounded-xl bg-[#E8E1D6]/60" />
+      </div>
+    </div>
+  )
+}
+
 export default function Bookings() {
   const navigate = useNavigate()
   const toast = useToast()
@@ -34,8 +58,27 @@ export default function Bookings() {
   const [qrFor, setQrFor] = useState(null)
   const [cancelling, setCancelling] = useState(null)
   const [isScannerOpen, setIsScannerOpen] = useState(false)
+  const [payBooking, setPayBooking] = useState(null)
+  const [currentTime, setCurrentTime] = useState(() => Date.now())
 
   const { data, loading, error, reload } = useAsync(() => getMyBookings(), [])
+
+  useEffect(() => {
+    reload()
+  }, [reload])
+
+  useEffect(() => {
+    const id = setInterval(() => setCurrentTime(Date.now()), 5000)
+    return () => clearInterval(id)
+  }, [])
+
+  const pendingHoldBookings = useMemo(() => {
+    return (data ?? []).filter(
+      (b) =>
+        (b.status === 'payment_pending' || b.paymentStatus === 'pending') &&
+        (!b.holdExpiresAt || currentTime < b.holdExpiresAt),
+    )
+  }, [data, currentTime])
 
   const pendingExtraBookings = useMemo(() => {
     return (data ?? []).filter((b) => b.status === 'pending_extra' || b.paymentStatus === 'PENDING_EXTRA')
@@ -45,8 +88,19 @@ export default function Bookings() {
     const list = data ?? []
     return {
       active: list.filter((b) => b.status === 'active'),
-      upcoming: list.filter((b) => b.status === 'upcoming'),
-      past: list.filter((b) => b.status === 'completed' || b.status === 'cancelled' || b.status === 'pending_extra'),
+      upcoming: list.filter(
+        (b) =>
+          b.status === 'upcoming' ||
+          b.status === 'payment_pending' ||
+          (b.paymentStatus === 'pending' && b.status !== 'cancelled'),
+      ),
+      past: list.filter(
+        (b) =>
+          b.status === 'completed' ||
+          b.status === 'cancelled' ||
+          b.status === 'pending_extra' ||
+          b.paymentStatus === 'expired',
+      ),
     }
   }, [data])
 
@@ -98,6 +152,40 @@ export default function Bookings() {
       />
 
       <div className="mx-auto max-w-3xl px-4 pt-4">
+        {/* Pending UPI Payment Hold Reminder Banner */}
+        {pendingHoldBookings.length > 0 && (
+          <div className="mb-4 rounded-2xl border border-[#E9A83A]/50 bg-[#FFF8E7] p-4 shadow-sm animate-pulse">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#E9A83A] text-[#17212B]">
+                  <Icon name="clock" size={18} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-[14px] font-black text-[#17212B]">
+                      Pending Payment Hold: {pendingHoldBookings[0].title}
+                    </h4>
+                    <span className="rounded bg-amber-200 px-1.5 py-0.2 text-[10px] font-black text-amber-900 uppercase">
+                      Action Required
+                    </span>
+                  </div>
+                  <p className="text-[12px] text-[#6B6B6B] mt-0.5">
+                    Tariff: {money(pendingHoldBookings[0].amount)} • Pay via UPI before the 5-minute hold expires to secure your parking bay.
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                className="bg-[#075B3D] hover:bg-[#064e34] text-white shrink-0 font-bold"
+                onClick={() => setPayBooking(pendingHoldBookings[0])}
+              >
+                Pay Now →
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Pending Extra Payment Reminder Banner (Part 3) */}
         {pendingExtraBookings.length > 0 && (
           <div className="mb-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 shadow-sm animate-pulse">
@@ -124,15 +212,18 @@ export default function Bookings() {
         )}
 
         <SegmentedTabs
-          tabs={TABS.map((item) => ({ ...item, count: groups[item.id].length }))}
+          tabs={TABS.map((item) => ({
+            ...item,
+            count: loading ? null : groups[item.id].length,
+          }))}
           value={tab}
           onChange={setTab}
         />
 
         {loading && (
           <div className="mt-4 space-y-3">
-            {[0, 1].map((key) => (
-              <div key={key} className="h-32 rounded-[var(--radius-card)] bg-surface card-shadow" />
+            {[1, 2, 3].map((key) => (
+              <BookingCardSkeleton key={key} />
             ))}
           </div>
         )}
@@ -148,16 +239,20 @@ export default function Bookings() {
           />
         )}
 
-        {/* Only mounted once there is something to show. Rendering the list
-            container unconditionally left an empty white block under every
-            tab — the skeletons, the empty state and the list were all painted
-            at once, so a tab looked like a blank panel. */}
         {!loading && !error && items.length > 0 && (
           <div className="mt-4 space-y-3 pb-4">
             {items.map((booking) => {
-              // A status the UI does not know about must not throw — that
-              // would take the whole tab down to a white screen.
-              const status = BOOKING_STATUS[booking.status] ?? BOOKING_STATUS.upcoming
+              const isPending =
+                booking.status === 'payment_pending' || booking.paymentStatus === 'pending'
+              const isExpired =
+                booking.paymentStatus === 'expired' ||
+                (isPending && booking.holdExpiresAt && currentTime > booking.holdExpiresAt)
+              const status = isExpired
+                ? BOOKING_STATUS.expired
+                : isPending
+                  ? BOOKING_STATUS.payment_pending
+                  : (BOOKING_STATUS[booking.status] ?? BOOKING_STATUS.upcoming)
+
               return (
                 <article
                   key={booking.id}
@@ -175,11 +270,10 @@ export default function Bookings() {
                     </Link>
 
                     <div className="min-w-0 flex-1">
-                      {/* Status changes crossfade rather than re-render (spec §4) */}
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="line-clamp-1 text-[14px] font-semibold">{booking.title}</h3>
                         <StatusPill
-                          key={booking.status}
+                          key={booking.status + (booking.paymentStatus || '')}
                           tone={status.tone}
                           label={status.label}
                           size="sm"
@@ -206,28 +300,74 @@ export default function Bookings() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 border-t border-line px-3 py-2.5">
-                    <p className="text-[14px] font-bold">
-                      {money(booking.amount)}
-                      <span className="ml-1 text-[11px] font-medium text-muted">paid at gate</span>
-                    </p>
-                    <div className="flex items-center gap-3">
-                      {booking.status === 'cancelled' ? (
-                        <span className="text-[12px] text-muted">{booking.cancelReason}</span>
-                      ) : (
-                        <>
-                          <TextLink icon={<Icon name="qr" size={14} />} onClick={() => setQrFor(booking)}>
-                            QR pass
-                          </TextLink>
-                          {booking.status === 'upcoming' && (
-                            <TextLink className="text-muted" onClick={() => setCancelling(booking)}>
-                              Cancel
-                            </TextLink>
-                          )}
-                        </>
-                      )}
+                  {/* Dynamic footer based on paymentStatus */}
+                  {isExpired ? (
+                    <div className="flex items-center justify-between gap-2 border-t border-line px-3 py-2.5 bg-[#FAF7F2]">
+                      <div>
+                        <p className="text-[13px] font-bold text-[#D96B5F]">Hold Expired</p>
+                        <p className="text-[11px] text-[#6B6B6B]">Bay released to map</p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/listing/${booking.spotId}`)}
+                        className="border-[#D96B5F] text-[#D96B5F] hover:bg-[#FBEAEA] text-[12px] font-bold"
+                      >
+                        Rebook Spot →
+                      </Button>
                     </div>
-                  </div>
+                  ) : isPending ? (
+                    <div className="flex items-center justify-between gap-2 border-t border-line px-3 py-2.5 bg-[#FFF8E7]/50">
+                      <div>
+                        <p className="text-[14px] font-black text-[#17212B]">
+                          {money(booking.amount)}
+                          <span className="ml-1 text-[11px] font-bold text-amber-800">hold reserved</span>
+                        </p>
+                        <p className="text-[11px] text-[#6B6B6B]">Awaiting UPI confirmation</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => setPayBooking(booking)}
+                          className="bg-[#075B3D] hover:bg-[#064e34] text-white font-bold text-[12px]"
+                        >
+                          Pay Now →
+                        </Button>
+                        <TextLink className="text-muted" onClick={() => setCancelling(booking)}>
+                          Cancel
+                        </TextLink>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2 border-t border-line px-3 py-2.5">
+                      <p className="text-[14px] font-bold">
+                        {money(booking.amount)}
+                        {booking.status === 'cancelled' ? (
+                          <span className="ml-1 text-[11px] font-medium text-muted">cancelled</span>
+                        ) : (
+                          <span className="ml-1.5 inline-flex items-center gap-0.5 text-[11px] font-bold text-[#075B3D]">
+                            <span>✓</span> Paid via UPI
+                          </span>
+                        )}
+                      </p>
+                      <div className="flex items-center gap-3">
+                        {booking.status === 'cancelled' ? (
+                          <span className="text-[12px] text-muted">{booking.cancelReason}</span>
+                        ) : (
+                          <>
+                            <TextLink icon={<Icon name="qr" size={14} />} onClick={() => setQrFor(booking)}>
+                              QR pass
+                            </TextLink>
+                            {booking.status === 'upcoming' && (
+                              <TextLink className="text-muted" onClick={() => setCancelling(booking)}>
+                                Cancel
+                              </TextLink>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </article>
               )
             })}
@@ -286,6 +426,20 @@ export default function Bookings() {
         onClose={() => setIsScannerOpen(false)}
         onScanSuccess={() => reload()}
       />
+
+      {/* Resume Pending UPI Payment Sheet */}
+      {payBooking && (
+        <BookingSheet
+          open={Boolean(payBooking)}
+          onClose={() => {
+            setPayBooking(null)
+            reload()
+          }}
+          spot={payBooking}
+          initialBooking={payBooking}
+          initialStep={3}
+        />
+      )}
     </PageShell>
   )
 }

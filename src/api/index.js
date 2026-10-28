@@ -97,8 +97,13 @@ const toBooking = (booking) => {
     endISO: booking.end,
     vehicleType: booking.vehicle?.type,
     plate: booking.vehicle?.number,
-    amount: booking.pricing?.total,
-    pin: booking.pinCode,
+    amount: booking.pricing?.total ?? booking.amount,
+    pin: booking.pinCode ?? booking.pin,
+    paymentStatus: booking.paymentStatus ?? (booking.status === 'payment_pending' ? 'pending' : 'paid'),
+    paymentRef: booking.paymentRef ?? null,
+    paymentId: booking.paymentId ?? null,
+    holdExpiresAt: booking.holdExpiresAt ?? null,
+    paidAt: booking.paidAt ?? null,
     checkedInISO: booking.checkIn?.checkedInAt ?? null,
     checkedOutISO: booking.checkOut?.checkedOutAt ?? null,
     createdISO: booking.createdAt ?? booking.created_at,
@@ -149,6 +154,7 @@ export function searchSpots(params = {}) {
   if (USE_MOCK) return mock.searchSpots(params)
   const {
     origin,
+    radiusKm,
     zone,
     vehicle,
     features,
@@ -167,6 +173,7 @@ export function searchSpots(params = {}) {
   const query = qs({
     lat: lat ?? NASHIK_CENTER.lat,
     lng: lng ?? NASHIK_CENTER.lng,
+    radius_km: radiusKm != null ? radiusKm : undefined,
     vehicle_type: vehicle,
     zone,
     min_price: minPrice,
@@ -217,6 +224,23 @@ export function createBooking(booking) {
     .then((r) => toBooking(payload(r)))
 }
 
+export function confirmBookingPayment({ bookingId, paymentId, paymentRef, paidAt }) {
+  if (USE_MOCK) return mock.confirmBookingPayment({ bookingId, paymentId, paymentRef, paidAt })
+  return http
+    .post(`/bookings/${bookingId}/confirm-payment`, { paymentId, paymentRef, paidAt })
+    .then((r) => toBooking(payload(r)))
+}
+
+export function cancelPendingBooking(bookingId) {
+  if (USE_MOCK) return mock.cancelPendingBooking(bookingId)
+  return http.post(`/bookings/${bookingId}/cancel-hold`).then((r) => toBooking(payload(r)))
+}
+
+export function expirePendingBooking(bookingId) {
+  if (USE_MOCK) return mock.expirePendingBooking(bookingId)
+  return http.post(`/bookings/${bookingId}/expire-hold`).then((r) => toBooking(payload(r)))
+}
+
 export function getMyBookings() {
   if (USE_MOCK) return mock.getMyBookings()
   return http.get('/bookings').then((r) => (payload(r) ?? []).map(toBooking))
@@ -264,6 +288,13 @@ export function setAccepting(spotId, accepting) {
   return http
     .patch(`/host/spots/${spotId}/availability`, { isAccepting: accepting })
     .then((r) => ({ ...payload(r), spotId, accepting }))
+}
+
+export function updateHostListingPrice(spotId, { priceHour, priceDay }) {
+  if (USE_MOCK) return mock.updateHostListingPrice(spotId, { priceHour, priceDay })
+  return http
+    .patch(`/host/spots/${spotId}/price`, { priceHour, priceDay })
+    .then((r) => payload(r))
 }
 
 /**

@@ -9,6 +9,8 @@ export const BOOKING_STATUS = {
   active: { label: 'Checked in', tone: 'success' },
   completed: { label: 'Completed', tone: 'neutral' },
   cancelled: { label: 'Cancelled', tone: 'muted' },
+  payment_pending: { label: 'Payment Pending', tone: 'warning' },
+  expired: { label: 'Hold Expired', tone: 'danger' },
 }
 
 export const VERIFICATION = {

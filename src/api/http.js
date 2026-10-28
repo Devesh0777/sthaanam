@@ -11,14 +11,14 @@ export const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1',
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 })
 
 const token = import.meta.env.VITE_API_TOKEN
 if (token) http.defaults.headers.common.Authorization = `Bearer ${token}`
 
 http.interceptors.request.use((config) => {
-  // Auth stub: swap for real session storage when the backend lands.
-  const sessionToken = localStorage.getItem('npc_token')
+  const sessionToken = localStorage.getItem('sthanam_token') || localStorage.getItem('npc_token')
   if (sessionToken) config.headers.Authorization = `Bearer ${sessionToken}`
   return config
 })
@@ -27,6 +27,7 @@ http.interceptors.response.use(
   (response) => response,
   (error) => {
     const message =
+      error?.response?.data?.error?.message ||
       error?.response?.data?.message ||
       (error.code === 'ECONNABORTED' ? 'Request timed out' : 'Network error, check your connection')
     return Promise.reject(Object.assign(error, { friendlyMessage: message }))

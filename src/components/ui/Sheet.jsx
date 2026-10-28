@@ -88,16 +88,16 @@ export default function Sheet({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          'relative z-10 flex flex-col w-full bg-surface border border-line shadow-2xl overflow-hidden',
+          'relative z-10 flex flex-col w-full glass-panel-strong border border-white/70 shadow-2xl overflow-hidden',
           // Mobile: bottom sheet
-          'rounded-t-[24px] max-h-[92dvh]',
+          'rounded-t-[28px] max-h-[92dvh]',
           // Desktop: centered floating modal with configurable width
           width === 'wide'
-            ? 'md:max-w-[880px] lg:max-w-[920px] md:rounded-[26px] md:max-h-[90vh]'
+            ? 'md:max-w-[880px] lg:max-w-[920px] md:rounded-[28px] md:max-h-[90vh]'
             : width === 'xl'
-              ? 'md:max-w-[1040px] md:rounded-[26px] md:max-h-[90vh]'
-              : 'md:max-w-[540px] md:rounded-[24px] md:max-h-[85vh]',
-          side === 'right' && 'md:max-w-[440px] md:h-[calc(100vh-2rem)] md:rounded-l-[24px] md:rounded-r-none md:ml-auto',
+              ? 'md:max-w-[1040px] md:rounded-[28px] md:max-h-[90vh]'
+              : 'md:max-w-[540px] md:rounded-[26px] md:max-h-[85vh]',
+          side === 'right' && 'md:max-w-[440px] md:h-[calc(100vh-2rem)] md:rounded-l-[28px] md:rounded-r-none md:ml-auto',
           className,
         )}
       >
@@ -109,15 +109,15 @@ export default function Sheet({
           onPointerCancel={onPointerUp}
           className="flex shrink-0 cursor-grab touch-none justify-center pt-3 pb-1 md:hidden active:cursor-grabbing"
         >
-          <span className="h-1.5 w-12 rounded-full bg-line" />
+          <span className="h-1.5 w-12 rounded-full bg-black/15" />
         </div>
 
         {/* Header */}
         {(title || !hideClose) && (
-          <header className="flex shrink-0 items-start justify-between gap-3 px-6 py-4 border-b border-line bg-surface-raised">
+          <header className="flex shrink-0 items-start justify-between gap-3 px-6 py-4 border-b border-[#17212B]/10 bg-white/40 backdrop-blur-md">
             <div className="min-w-0 flex-1">
               {eyebrow && (
-                <p className="text-[10.5px] font-mono font-black uppercase tracking-[0.14em] text-[#075B3D] mb-0.5">
+                <p className="text-[10.5px] font-mono font-black uppercase tracking-[0.14em] text-[#006B4F] mb-0.5">
                   {eyebrow}
                 </p>
               )}
@@ -130,7 +130,7 @@ export default function Sheet({
                 type="button"
                 onClick={onClose}
                 aria-label="Close"
-                className="grid size-8 shrink-0 place-items-center rounded-full text-muted hover:bg-surface hover:text-ink transition-colors"
+                className="grid size-8 shrink-0 place-items-center rounded-full text-muted hover:bg-black/5 hover:text-ink transition-colors cursor-pointer"
               >
                 <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2.2">
                   <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
@@ -147,7 +147,7 @@ export default function Sheet({
 
         {/* Sticky Footer */}
         {footer && (
-          <div className="shrink-0 border-t border-line bg-surface-raised px-6 py-4">
+          <div className="shrink-0 border-t border-[#17212B]/10 bg-white/40 backdrop-blur-md px-6 py-4">
             {footer}
           </div>
         )}

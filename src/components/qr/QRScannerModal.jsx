@@ -23,6 +23,70 @@ export default function QRScannerModal({ isOpen, onClose, onScanSuccess }) {
   const [isPayingExtra, setIsPayingExtra] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
 
+  const stopCamera = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+  }
+
+  const handleScannedCode = async (data) => {
+    if (isProcessing) return
+    setIsProcessing(true)
+    stopCamera()
+
+    try {
+      const response = await scanParking({ qrToken: data })
+      setScanResult(response)
+      toast.push({
+        tone: 'success',
+        title: response.action === 'CHECK_IN' ? 'Check-in Successful' : 'Check-out Processed',
+        message: response.message,
+      })
+      if (onScanSuccess) onScanSuccess(response)
+    } catch (err) {
+      toast.push({
+        tone: 'error',
+        title: 'Scan Failed',
+        message: err.friendlyMessage || err.message,
+      })
+      setIsProcessing(false)
+      if (videoRef.current) {
+        requestAnimationFrame(scanVideoFrame)
+      }
+    }
+  }
+
+  const scanVideoFrame = () => {
+    if (!videoRef.current || !canvasRef.current || isProcessing) return
+
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.height = video.videoHeight
+      canvas.width = video.videoWidth
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'dontInvert',
+      })
+
+      if (code && code.data) {
+        handleScannedCode(code.data)
+        return
+      }
+    }
+
+    animationFrameRef.current = requestAnimationFrame(scanVideoFrame)
+  }
+
   // Start/Stop camera stream
   useEffect(() => {
     if (!isOpen || activeTab !== 'camera' || scanResult) {
@@ -77,17 +141,6 @@ export default function QRScannerModal({ isOpen, onClose, onScanSuccess }) {
     }
   }, [isOpen, activeTab, facingMode, scanResult])
 
-  const stopCamera = () => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current)
-      animationFrameRef.current = null
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop())
-      streamRef.current = null
-    }
-  }
-
   const toggleTorch = async () => {
     if (!streamRef.current) return
     const track = streamRef.current.getVideoTracks()[0]
@@ -108,64 +161,6 @@ export default function QRScannerModal({ isOpen, onClose, onScanSuccess }) {
 
   const switchCamera = () => {
     setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'))
-  }
-
-  const scanVideoFrame = () => {
-    if (!videoRef.current || !canvasRef.current || isProcessing) return
-
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      canvas.height = video.videoHeight
-      canvas.width = video.videoWidth
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-
-      const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: 'dontInvert',
-      })
-
-      if (code && code.data) {
-        handleScannedCode(code.data)
-        return
-      }
-    }
-
-    animationFrameRef.current = requestAnimationFrame(scanVideoFrame)
-  }
-
-  const handleScannedCode = async (data) => {
-    if (isProcessing) return
-    setIsProcessing(true)
-    stopCamera()
-
-    try {
-      const response = await scanParking({ qrToken: data })
-      setScanResult(response)
-      toast.push({
-        tone: 'success',
-        title: response.action === 'CHECK_IN' ? 'Check-in Successful' : 'Check-out Processed',
-        message: response.message,
-      })
-      if (onScanSuccess) onScanSuccess(response)
-    } catch (err) {
-      toast.push({
-        tone: 'error',
-        title: 'Scan Rejected',
-        message: err.friendlyMessage ?? err.message,
-      })
-      // Resume scanning after small delay
-      setTimeout(() => {
-        setIsProcessing(false)
-        if (activeTab === 'camera') {
-          requestAnimationFrame(scanVideoFrame)
-        }
-      }, 1800)
-    } finally {
-      setIsProcessing(false)
-    }
   }
 
   const handleManualSubmit = async (e) => {
@@ -226,15 +221,15 @@ export default function QRScannerModal({ isOpen, onClose, onScanSuccess }) {
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-surface border border-line shadow-2xl">
+      <div className="relative w-full max-w-md overflow-hidden rounded-3xl glass-panel-strong border border-white/60 shadow-2xl">
         {/* Header Bar */}
-        <div className="flex items-center justify-between border-b border-line px-5 py-4 bg-surface-raised">
+        <div className="flex items-center justify-between border-b border-[#17212B]/10 px-5 py-4 bg-white/40 backdrop-blur-md">
           <div className="flex items-center gap-2.5">
             <div className="grid h-9 w-9 place-items-center rounded-full bg-accent/15 text-accent">
               <Icon name="qr" size={20} />
             </div>
             <div>
-              <h3 className="text-base font-bold text-ink">Kumbh Park QR Scanner</h3>
+              <h3 className="text-base font-bold text-ink">Sthaanam QR Scanner</h3>
               <p className="text-xs text-muted">Scan spot QR for Check-in & Check-out</p>
             </div>
           </div>

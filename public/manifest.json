@@ -1,0 +1,26 @@
+{
+  "short_name": "Sthaanam",
+  "name": "Sthaanam — Nashik Kumbh Mela 2027 Verified Parking",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48 32x32 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#D8D4BF",
+  "theme_color": "#0F2A1E",
+  "display": "standalone",
+  "scope": "/"
+}

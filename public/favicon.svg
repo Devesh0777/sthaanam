@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="gem-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="40%" stop-color="#FFF8D6" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#3B5948" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Background Green Paper Rounded Square -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#3B5948" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
+  <!-- Topographic Contour Lines -->
+  <path d="M6 18 Q 16 12, 32 16 T 58 14" fill="none" stroke="#2D4537" stroke-width="1.2" opacity="0.6"/>
+  <path d="M6 28 Q 20 22, 32 26 T 58 24" fill="none" stroke="#2D4537" stroke-width="1.2" opacity="0.6"/>
+  <path d="M6 38 Q 18 42, 32 38 T 58 42" fill="none" stroke="#2D4537" stroke-width="1.2" opacity="0.6"/>
+  <path d="M6 48 Q 22 54, 32 50 T 58 52" fill="none" stroke="#2D4537" stroke-width="1.2" opacity="0.6"/>
+  <!-- Compass Needle -->
+  <!-- North needle -->
+  <polygon points="32,10 35,30 32,27 29,30" fill="#22362A"/>
+  <!-- South needle -->
+  <polygon points="32,48 34,34 32,36 30,34" fill="#22362A"/>
+  <!-- West needle -->
+  <polygon points="12,31 28,29 27,31 28,33" fill="#22362A"/>
+  <!-- East needle -->
+  <polygon points="52,31 36,29 37,31 36,33" fill="#22362A"/>
+  <!-- Center Pivot Circle -->
+  <circle cx="32" cy="31" r="3.2" fill="#2D4537" stroke="#1F3025" stroke-width="1"/>
+  <!-- Glowing Pale Gold Gem (Below Pivot) -->
+  <circle cx="32" cy="40" r="7" fill="url(#gem-glow)"/>
+  <polygon points="32,36 35.5,40 32,44 28.5,40" fill="#FFFBE6" stroke="#D8C99B" stroke-width="0.8"/>
+</svg>

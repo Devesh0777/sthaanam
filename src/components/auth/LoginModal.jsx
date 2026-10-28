@@ -35,16 +35,16 @@ export default function LoginModal({ isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-[#0E151D]/80 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-md rounded-3xl bg-[#FAF7F2] border-2 border-[#E2DDD3] shadow-2xl overflow-hidden my-auto">
+      <div className="relative w-full max-w-md rounded-3xl glass-panel-strong border border-white/60 shadow-2xl overflow-hidden my-auto">
         {/* Header */}
         <div className="bg-[#17212B] text-white px-5 py-4 flex items-center justify-between border-b border-white/10">
           <div className="flex items-center gap-2.5">
-            <div className="grid size-8 place-items-center rounded-lg bg-[#006B4F] text-[#FFD166] text-[12px] font-black font-mono">
-              KP
+            <div className="grid size-8 place-items-center rounded-lg bg-[#006B4F] text-[#FFD166] text-[13px] font-black font-mono">
+              S
             </div>
             <div>
               <h3 className="text-[15px] font-black uppercase font-serif tracking-wider">
-                KUMBH PARK LOGIN
+                STHAANAM LOGIN
               </h3>
               <p className="text-[10px] text-white/70">Select role to enter platform</p>
             </div>
@@ -115,7 +115,7 @@ export default function LoginModal({ isOpen, onClose }) {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-[14px] font-black text-[#17212B] block">Devv</span>
-                    <span className="text-[10.5px] font-mono text-[#66706B]">devv@kumbhpark.com</span>
+                    <span className="text-[10.5px] font-mono text-[#66706B]">devv@sthanam.in</span>
                   </div>
                   <Button
                     size="sm"
@@ -193,7 +193,7 @@ export default function LoginModal({ isOpen, onClose }) {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-[14px] font-black text-[#17212B] block">Kumbh Admin Controller</span>
-                    <span className="text-[10.5px] font-mono text-[#66706B]">admin@kumbhpark.gov.in</span>
+                    <span className="text-[10.5px] font-mono text-[#66706B]">admin@sthanam.gov.in</span>
                   </div>
                   <Button
                     size="sm"

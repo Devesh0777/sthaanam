@@ -1,19 +1,54 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Icon from '@/components/ui/Icon'
 import Button from '@/components/ui/Button'
 
 /**
- * KumbhParkRoadHero (Part 13 — Readability & Visual Hierarchy Refinement)
- * - "KUMBH PARK" road typography is the primary focal point (15% larger, increased spacing).
- * - Letter stroke width increased to 28px with warm saffron lane markings (#FFD166).
- * - Thin cream separation outline (no background panel, rectangle, or container).
- * - Zero overlap: All small labels, parking badges, and pilgrim routes are positioned on the outer perimeter.
- * - Saffron pilgrim route skirts around letterforms with clear negative space around text.
+ * KumbhParkRoadHero
+ * - "KUMBH PARK" street-map typography with interactive perimeter parking spots.
+ * - Dynamic scroll-driven saffron vehicle driving along the Pilgrim Route road.
  */
 export default function KumbhParkRoadHero() {
   const navigate = useNavigate()
+  const heroRef = useRef(null)
+  const pilgrimPathRef = useRef(null)
   const [activeSpot, setActiveSpot] = useState(null)
+  const [heroCarState, setHeroCarState] = useState({ x: 920, y: 85, angle: 180 })
+
+  // Calculate moving car position & rotation along saffron pilgrim route road
+  const updateHeroCar = useCallback(() => {
+    if (!heroRef.current || !pilgrimPathRef.current) return
+    try {
+      const rect = heroRef.current.getBoundingClientRect()
+      const totalScrollable = rect.height + window.innerHeight
+      const currentScroll = window.innerHeight - rect.top
+      const rawProgress = Math.max(0, Math.min(1, currentScroll / totalScrollable))
+
+      const totalLen = pilgrimPathRef.current.getTotalLength()
+      if (!totalLen || isNaN(totalLen)) return
+
+      const currentLen = rawProgress * totalLen
+      const pt = pilgrimPathRef.current.getPointAtLength(currentLen)
+
+      const delta = 2.0
+      const pt1 = pilgrimPathRef.current.getPointAtLength(Math.max(0, currentLen - delta))
+      const pt2 = pilgrimPathRef.current.getPointAtLength(Math.min(totalLen, currentLen + delta))
+
+      const dx = pt2.x - pt1.x
+      const dy = pt2.y - pt1.y
+      let angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90
+
+      setHeroCarState({ x: pt.x, y: pt.y, angle })
+    } catch {
+      // safe fallback
+    }
+  }, [])
+
+  useEffect(() => {
+    window.addEventListener('scroll', updateHeroCar, { passive: true })
+    updateHeroCar()
+    return () => window.removeEventListener('scroll', updateHeroCar)
+  }, [updateHeroCar])
 
   // Parking spots integrated along the perimeter city roads
   const mapParkingSpots = [
@@ -56,7 +91,7 @@ export default function KumbhParkRoadHero() {
   ]
 
   return (
-    <section className="relative overflow-hidden bg-[#FAF7F2] text-[#17212B] pt-4 pb-12 md:pt-8 md:pb-16 border-b border-[#E6DFC6]">
+    <section ref={heroRef} className="relative overflow-hidden bg-[#FAF7F2] text-[#17212B] pt-4 pb-12 md:pt-8 md:pb-16 border-b border-[#E6DFC6]">
       {/* ----------------- TOP IDENTITY BAR ----------------- */}
       <div className="mx-auto max-w-6xl px-4 sm:px-6 text-center">
         <div className="inline-flex items-center gap-2 rounded-full bg-[#005A36]/10 px-4 py-1.5 border border-[#005A36]/20 text-[11px] sm:text-[12px] font-mono font-bold tracking-widest text-[#005A36] uppercase shadow-xs">
@@ -95,7 +130,7 @@ export default function KumbhParkRoadHero() {
           <div className="absolute top-3 left-3 z-10 hidden md:flex items-center gap-2.5 rounded-lg bg-white/90 backdrop-blur-md px-3 py-1.5 border border-[#C5D9BF] text-[10px] font-mono font-bold text-[#17212B] shadow-sm">
             <div className="flex items-center gap-1">
               <span className="w-3.5 h-2 rounded bg-[#121A24] inline-block border border-[#FFD166]" />
-              <span>Main Road (KUMBH PARK)</span>
+              <span>Main Road (STHANAM)</span>
             </div>
             <div className="flex items-center gap-1">
               <span className="w-3 h-0 border-b-2 border-dashed border-[#E9A83A]" />
@@ -117,6 +152,9 @@ export default function KumbhParkRoadHero() {
               <defs>
                 <filter id="roadShadow" x="-10%" y="-10%" width="120%" height="120%">
                   <feDropShadow dx="2" dy="4" stdDeviation="4" floodColor="#0F1722" floodOpacity="0.28" />
+                </filter>
+                <filter id="carGlow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#000000" floodOpacity="0.4" />
                 </filter>
                 <linearGradient id="godavariGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor="#247885" />
@@ -178,6 +216,7 @@ export default function KumbhParkRoadHero() {
                   3. SAFFRON DOTTED PILGRIM ROUTE (SKIRTS AROUND TYPOGRAPHY)
               ------------------------------------------------------------- */}
               <path
+                ref={pilgrimPathRef}
                 d="M 920,85 C 750,85 640,25 500,25 C 340,25 180,75 100,160 C 50,220 50,340 110,380 C 150,480 300,530 480,530 L 900,530"
                 fill="none"
                 stroke="#E9A83A"
@@ -271,13 +310,57 @@ export default function KumbhParkRoadHero() {
               </g>
 
               {/* -------------------------------------------------------------
-                  6. VEHICLES ON ROAD NETWORK
+                  6. VEHICLES & DYNAMIC SCROLL-DRIVEN CAR ON PILGRIM ROUTE ROAD
               ------------------------------------------------------------- */}
+              {/* Secondary static vehicles */}
               <g transform="translate(150, 160) rotate(90)">
                 <rect x="-8" y="-4" width="16" height="8" rx="2" fill="#E9A83A" stroke="#17212B" strokeWidth="1" />
               </g>
               <g transform="translate(295, 380) rotate(90)">
                 <rect x="-8" y="-4" width="16" height="8" rx="2" fill="#005A36" stroke="#FAF7F2" strokeWidth="1" />
+              </g>
+
+              {/* Dynamic Scroll-Driven Moving Top-Down Car Icon */}
+              <g
+                transform={`translate(${heroCarState.x}, ${heroCarState.y}) rotate(${heroCarState.angle})`}
+                filter="url(#carGlow)"
+                className="pointer-events-none transition-transform duration-100 ease-out"
+              >
+                {/* Yellow Headlight Glow */}
+                <polygon points="0,-12 -16,-55 16,-55" fill="#FFD166" opacity="0.65" />
+
+                {/* Tires */}
+                <rect x="-11" y="-14" width="3" height="7" rx="1.5" fill="#121A24" />
+                <rect x="8" y="-14" width="3" height="7" rx="1.5" fill="#121A24" />
+                <rect x="-11" y="8" width="3" height="7" rx="1.5" fill="#121A24" />
+                <rect x="8" y="8" width="3" height="7" rx="1.5" fill="#121A24" />
+
+                {/* Main Body (Warm Off-White #FAF7F2 with Dark Outline) */}
+                <rect x="-9" y="-16" width="18" height="32" rx="5" fill="#FAF7F2" stroke="#17212B" strokeWidth="1.5" />
+
+                {/* Saffron Center Stripe */}
+                <rect x="-1.5" y="-15" width="3" height="30" fill="#FFD166" />
+
+                {/* Roof Cabin */}
+                <rect x="-5" y="-7" width="10" height="13" rx="2.5" fill="#17212B" stroke="#FFD166" strokeWidth="0.6" />
+
+                {/* Windshield */}
+                <path d="M-4.5,-6 L4.5,-6 L3.5,-2 L-3.5,-2 Z" fill="#FFD166" opacity="0.9" />
+
+                {/* Rear Window */}
+                <path d="M-3.5,4 L3.5,4 L2.5,5.5 L-2.5,5.5 Z" fill="#FFD166" opacity="0.7" />
+
+                {/* Headlights */}
+                <circle cx="-6.5" cy="-14.5" r="1.8" fill="#FFFFFF" stroke="#17212B" strokeWidth="0.4" />
+                <circle cx="6.5" cy="-14.5" r="1.8" fill="#FFFFFF" stroke="#17212B" strokeWidth="0.4" />
+
+                {/* Taillights */}
+                <circle cx="-6.5" cy="14.5" r="1.5" fill="#FF3B30" />
+                <circle cx="6.5" cy="14.5" r="1.5" fill="#FF3B30" />
+
+                {/* Mirrors */}
+                <rect x="-11.5" y="-10" width="2" height="4" rx="0.8" fill="#FAF7F2" stroke="#17212B" strokeWidth="0.6" />
+                <rect x="9.5" y="-10" width="2" height="4" rx="0.8" fill="#FAF7F2" stroke="#17212B" strokeWidth="0.6" />
               </g>
 
               {/* -------------------------------------------------------------
@@ -315,7 +398,7 @@ export default function KumbhParkRoadHero() {
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#C5D9BF] pt-3 px-2 text-[11px] sm:text-[12px] font-mono font-bold text-[#005A36]">
             <div className="flex items-center gap-2">
               <span className="size-2 rounded-full bg-[#E9A83A]" />
-              <span>NASHIK CORRIDOR = KUMBH PARK STREET NETWORK</span>
+              <span>NASHIK CORRIDOR = STHANAM STREET NETWORK</span>
             </div>
             <div className="flex items-center gap-3 text-[#17212B]">
               <span>VERIFIED COMPOUND SPOTS: <strong>140+ AVAILABLE</strong></span>

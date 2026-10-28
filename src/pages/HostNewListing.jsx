@@ -4,26 +4,27 @@ import { createHostListing, getZones } from '@/api'
 import { cn } from '@/lib/cn'
 import { money } from '@/lib/format'
 import { FEATURES, SURFACES, VEHICLE_TYPES } from '@/api/mock/spots'
+import { NASHIK_LANDMARKS, findNearestLandmark } from '@/data/landmarks'
 import { useAsync } from '@/hooks/useAsync'
 import { PageShell, PageHeader } from '@/components/layout/PageShell'
-import KumbhMap from '@/components/map/KumbhMap'
 import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
 import Photo from '@/components/ui/Photo'
 import { photoUri } from '@/lib/photo'
 import { Field, Input, OptionTile, Select, Textarea } from '@/components/ui/Field'
-import { StepBar } from '@/components/ui/Feedback'
+import HostLocationSection from '@/components/parking/HostLocationSection'
+import LiveListingPreview from '@/components/host/LiveListingPreview'
 import { SegmentedTabs } from '@/components/ui/Chip'
 import { useToast } from '@/components/ui/Toast'
 import { useApp } from '@/context/AppContext'
 
 const STEPS = [
-  { id: 'location', label: 'Location' },
-  { id: 'details', label: 'Details' },
-  { id: 'photos', label: 'Photos' },
-  { id: 'pricing', label: 'Pricing' },
-  { id: 'availability', label: 'Hours' },
-  { id: 'review', label: 'Review' },
+  { id: 'location', label: 'Location', number: 1 },
+  { id: 'details', label: 'Details', number: 2 },
+  { id: 'photos', label: 'Photos', number: 3 },
+  { id: 'pricing', label: 'Pricing', number: 4 },
+  { id: 'availability', label: 'Hours', number: 5 },
+  { id: 'review', label: 'Review', number: 6 },
 ]
 
 const VEHICLE_ICON = { '2w': 'bike', car: 'car', bus: 'bus' }
@@ -45,64 +46,123 @@ const TIME_WINDOWS = [
   { id: 'night', label: 'Overnight', from: '22:00', to: '05:00' },
 ]
 
-/**
- * Multi-step host form. Steps slide horizontally instead of the sheet
- * re-opening (spec §4), with a single primary CTA pinned to the bottom.
- */
+const DEFAULT_ZONES = [
+  { id: 'ramkund', name: 'Ramkund Ghat Area', short: 'Ramkund' },
+  { id: 'panchavati', name: 'Panchavati', short: 'Panchavati' },
+  { id: 'tapovan', name: 'Tapovan / Sadhugram', short: 'Tapovan' },
+  { id: 'kalaram', name: 'Kalaram Temple Zone', short: 'Kalaram' },
+  { id: 'trimbakeshwar', name: 'Trimbakeshwar', short: 'Trimbak' },
+  { id: 'cbd', name: 'CBS / Nashik Central', short: 'CBS' },
+]
+
+const DRAFT_KEY = 'sthanam_host_draft'
+
 export default function HostNewListing() {
   const navigate = useNavigate()
   const toast = useToast()
   const { host } = useApp()
-  const { data: zones } = useAsync(() => getZones(), [])
+  const { data: rawZones } = useAsync(() => getZones(), [])
+  const zones = useMemo(() => (rawZones?.length ? rawZones : DEFAULT_ZONES), [rawZones])
 
   const [step, setStep] = useState(0)
-  const [direction, setDirection] = useState(1)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(null)
+  const [showMobilePreview, setShowMobilePreview] = useState(false)
+  const [showErrorSummary, setShowErrorSummary] = useState(false)
 
-  const [form, setForm] = useState({
-    zoneId: 'ramkund',
-    address: '',
-    landmark: '',
-    latlng: [19.9525, 73.3342],
-    title: '',
-    description: '',
-    vehicles: ['2w', 'car'],
-    capacity: 8,
-    surface: 'Cement',
-    clearanceM: 2.5,
-    features: ['gate', 'floodlight'],
-    photos: 3,
-    priceHour: 30,
-    priceDay: 200,
-    windows: ['morning', 'day', 'aarti'],
-    note: '',
+  const [form, setForm] = useState(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY)
+      if (saved) return JSON.parse(saved)
+    } catch {
+      // Fallback
+    }
+    return {
+      zoneId: 'ramkund',
+      address: '',
+      nearestLandmark: NASHIK_LANDMARKS[0], // Default: Ramkund
+      landmark: NASHIK_LANDMARKS[0].name,
+      latlng: [19.9992, 73.7915],
+      locationSource: 'manual',
+      locationAccuracy: null,
+      title: '',
+      description: '',
+      vehicles: ['2w', 'car'],
+      capacity: 8,
+      surface: 'Cement',
+      clearanceM: 2.5,
+      features: ['gate', 'floodlight'],
+      photos: 3,
+      priceHour: 30,
+      priceDay: 200,
+      windows: ['morning', 'day', 'aarti'],
+      note: '',
+    }
   })
 
   const set = (patch) => setForm((current) => ({ ...current, ...patch }))
 
   const goTo = (next) => {
-    setDirection(next > step ? 1 : -1)
+    setShowErrorSummary(false)
     setStep(next)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const errors = useMemo(() => validate(step, form), [step, form])
   const zone = zones?.find((z) => z.id === form.zoneId)
-  const pinFocus = useMemo(
-    () => ({ latlng: form.latlng, zoom: 17 }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [form.latlng[0], form.latlng[1]],
-  )
+
+  // Save draft locally
+  const handleSaveDraft = () => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(form))
+      toast.push({
+        tone: 'success',
+        title: 'Draft Saved',
+        message: 'Your listing progress has been saved locally.',
+      })
+    } catch {
+      toast.push({ tone: 'error', title: 'Could not save draft' })
+    }
+  }
+
+  const handleContinue = () => {
+    const currentErrors = validate(step, form)
+    if (Object.keys(currentErrors).length > 0) {
+      setShowErrorSummary(true)
+      return
+    }
+    if (step === STEPS.length - 1) {
+      submit()
+    } else {
+      goTo(step + 1)
+    }
+  }
 
   const submit = async () => {
     setSubmitting(true)
     try {
+      const nearest = form.nearestLandmark || findNearestLandmark(form.latlng)
       const result = await createHostListing({
         ...form,
-        title: form.title || `${form.capacity}-spot parking near ${zone?.short ?? 'the ghat'}`,
+        location: {
+          latitude: form.latlng[0],
+          longitude: form.latlng[1],
+          accuracy: form.locationAccuracy || 0,
+          source: form.locationSource || 'manual',
+          landmark: nearest?.name || form.landmark || '',
+          landmarkId: nearest?.id || '',
+          landmarkDistanceMeters: nearest?.distanceMeters || 0,
+          zone: zone?.name || '',
+          address: form.address,
+        },
+        landmark: nearest?.name || form.landmark,
+        title:
+          form.title ||
+          `${form.capacity}-spot parking near ${nearest?.name ?? zone?.short ?? 'the ghat'}`,
         hostName: host.name,
         phone: host.phone,
       })
+      localStorage.removeItem(DRAFT_KEY)
       setSubmitted(result)
     } catch (err) {
       toast.push({ tone: 'error', title: 'Could not submit', message: err.friendlyMessage ?? err.message })
@@ -114,24 +174,40 @@ export default function HostNewListing() {
   if (submitted) {
     return (
       <PageShell>
-        <PageHeader title="Submitted" backTo="/host" />
-        <div className="mx-auto max-w-md px-4 pt-8 text-center">
-          <span className="mx-auto grid size-16 place-items-center rounded-full bg-success-soft text-success animate-[check-pop_0.45s_var(--ease-out-expo)]">
-            <Icon name="check" size={30} strokeWidth={2.6} />
-          </span>
-          <h1 className="mt-4 text-[22px] font-bold">Sent for verification</h1>
-          <p className="mt-2 text-[14px] text-muted">
-            Our team checks your documents and photographs the plot. Listings usually go live within 4 hours during
-            the mela.
-          </p>
-          <div className="mt-5 rounded-[var(--radius-card)] bg-surface p-4 text-left card-shadow">
-            <Row label="Submission" value={submitted.id} />
-            <Row label="Zone" value={submitted.zoneName} />
-            <Row label="Capacity" value={`${submitted.capacity} vehicles`} />
-            <Row label="Rate" value={`${money(submitted.priceHour)}/hr`} />
+        <PageHeader title="Listing Submitted" backTo="/host" />
+        <div className="mx-auto max-w-lg px-4 pt-10 pb-20 text-center space-y-6">
+          <div className="mx-auto grid size-20 place-items-center rounded-3xl bg-[#E7F1EA] text-[#075B3D] border border-[#075B3D]/30 shadow-md">
+            <Icon name="check" size={38} strokeWidth={2.8} />
           </div>
-          <Button full size="lg" className="mt-5" onClick={() => navigate('/host')}>
-            Back to host dashboard
+
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-[#FFF8E7] px-3 py-1 text-[11px] font-mono font-black text-[#B47C10] border border-[#E9A83A]/40 uppercase tracking-wider">
+              <span>Status: Pending Field Verification</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black text-[#17212B] font-heading">
+              Listing Sent for Verification
+            </h1>
+            <p className="text-[13.5px] text-[#525B60] leading-relaxed max-w-md mx-auto">
+              Our Nashik municipal cordon team verifies physical gate clearance and access security. Verified spaces typically go live within 2–4 hours during the Kumbh Mela.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-[#E8E4DA] bg-white p-5 text-left shadow-2xs space-y-2.5">
+            <SummaryRow label="Submission Ref" value={`#${submitted.id}`} />
+            <SummaryRow label="Zone Sector" value={submitted.zoneName} />
+            <SummaryRow label="Assigned Landmark" value={form.nearestLandmark?.name ?? 'Ramkund'} />
+            <SummaryRow label="Coordinates" value={`${form.latlng[0].toFixed(4)}, ${form.latlng[1].toFixed(4)}`} />
+            <SummaryRow label="Bays Capacity" value={`${submitted.capacity} vehicles`} />
+            <SummaryRow label="Tariff Rate" value={`${money(submitted.priceHour)}/hr · ${money(submitted.priceDay)}/day`} />
+          </div>
+
+          <Button
+            full
+            size="lg"
+            className="bg-[#075B3D] hover:bg-[#064e34] text-white font-black text-[14px] uppercase tracking-wider py-4 shadow-md rounded-2xl cursor-pointer"
+            onClick={() => navigate('/host')}
+          >
+            Back to Host Dashboard
           </Button>
         </div>
       </PageShell>
@@ -140,433 +216,594 @@ export default function HostNewListing() {
 
   return (
     <PageShell>
-      <PageHeader title="List your parking" subtitle={`Step ${step + 1} of ${STEPS.length}`} backTo="/host" />
+      {/* ----------------- 1. HEADER & MODERN NUMBERED STEPPER ----------------- */}
+      <PageHeader
+        title="List Your Parking Space"
+        subtitle={`Step ${step + 1} of ${STEPS.length}: ${STEPS[step].label}`}
+        backTo="/host"
+      />
 
-      <div className="sticky top-[52px] z-[500] border-b border-line bg-bg/94 px-4 py-3 backdrop-blur-sm">
-        <StepBar steps={STEPS} current={step} />
+      <div className="sticky top-[52px] z-[500] border-b border-[#E8E4DA] bg-white/95 px-4 py-3 backdrop-blur-md shadow-2xs">
+        <div className="mx-auto max-w-6xl flex items-center justify-between gap-4">
+          {/* Stepper Navigation */}
+          <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto no-scrollbar w-full">
+            {STEPS.map((s, index) => {
+              const isCurrent = step === index
+              const isCompleted = step > index
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => goTo(index)}
+                  className="flex items-center gap-2 group cursor-pointer shrink-0"
+                >
+                  <div
+                    className={cn(
+                      'grid size-7 place-items-center rounded-full text-[11px] font-mono font-bold transition-all',
+                      isCurrent
+                        ? 'bg-[#075B3D] text-white ring-4 ring-[#075B3D]/20 shadow-xs'
+                        : isCompleted
+                          ? 'bg-[#E7F1EA] text-[#075B3D] border border-[#075B3D]/30'
+                          : 'bg-[#FAF7F2] text-[#6B7578] border border-[#E8E4DA]',
+                    )}
+                  >
+                    {isCompleted ? '✓' : s.number}
+                  </div>
+                  <span
+                    className={cn(
+                      'hidden md:inline text-[12px] font-bold transition-colors',
+                      isCurrent ? 'text-[#075B3D] font-black' : isCompleted ? 'text-[#17212B]' : 'text-[#6B7578]',
+                    )}
+                  >
+                    {s.label}
+                  </span>
+                  {index < STEPS.length - 1 && (
+                    <span className="hidden sm:inline text-[#E8E4DA] font-bold">―</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Mobile Preview Toggle Pill */}
+          <button
+            type="button"
+            onClick={() => setShowMobilePreview(!showMobilePreview)}
+            className="lg:hidden shrink-0 inline-flex items-center gap-1 rounded-xl bg-[#FAF7F2] border border-[#E8E4DA] px-2.5 py-1 text-[11px] font-bold text-[#075B3D] cursor-pointer"
+          >
+            <Icon name="eye" size={13} />
+            <span>{showMobilePreview ? 'Hide' : 'Preview'}</span>
+          </button>
+        </div>
       </div>
 
-      <div className="mx-auto max-w-2xl px-4 pt-5 pb-32">
-        <div
-          key={step}
-          className={cn(direction > 0 ? 'animate-[step-in_0.28s_var(--ease-out-expo)]' : 'animate-[step-back_0.28s_var(--ease-out-expo)]')}
-        >
-          {/* ------------------------------ step 1: location --------------------- */}
-          {step === 0 && (
-            <div className="space-y-4">
-              <Field label="Which zone is the spot in?" required>
-                <Select value={form.zoneId} onChange={(event) => set({ zoneId: event.target.value })}>
-                  {(zones ?? []).map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
+      {/* ----------------- 2. TWO-COLUMN WORKSPACE (FORM LEFT, PREVIEW RIGHT) ----------------- */}
+      <div className="mx-auto max-w-6xl px-4 pt-6 pb-32 sm:px-6">
+        {/* Mobile Collapsible Preview */}
+        {showMobilePreview && (
+          <div className="lg:hidden mb-6">
+            <LiveListingPreview form={form} zone={zone} />
+          </div>
+        )}
 
-              <Field label="Full address" required error={errors.address} hint="Pilgrims see this after booking only.">
-                <Input
-                  value={form.address}
-                  onChange={(event) => set({ address: event.target.value })}
-                  placeholder="House no, street, landmark"
-                />
-              </Field>
-
-              <Field label="Nearest landmark" hint="Helps guests find the gate during the rush.">
-                <Input
-                  value={form.landmark}
-                  onChange={(event) => set({ landmark: event.target.value })}
-                  placeholder="e.g. opposite Sagar Petrol Pump"
-                />
-              </Field>
-
-              <div>
-                <p className="mb-1.5 text-[13px] font-semibold">Pin the exact gate</p>
-                <p className="mb-2 text-[12px] text-muted">
-                  Drag the map and tap to drop your pin. This is the location guests navigate to.
-                </p>
-                <div className="overflow-hidden rounded-[var(--radius-card)] border border-line">
-                  <div className="relative h-64">
-                    <KumbhMap
-                      spots={[]}
-                      center={form.latlng}
-                      focus={pinFocus}
-                      onMapClick={(latlng) => set({ latlng })}
-                      showZoom={false}
-                    />
-                    <span className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full text-accent">
-                      <Icon name="pin" size={30} filled />
-                    </span>
-                  </div>
-                </div>
-                <p className="mt-2 text-[12px] text-muted">
-                  {form.latlng[0].toFixed(4)}, {form.latlng[1].toFixed(4)} · {zone?.name}
-                </p>
-              </div>
+        {/* Validation Error Banner */}
+        {showErrorSummary && Object.keys(errors).length > 0 && (
+          <div className="mb-6 rounded-2xl bg-red-50 border border-red-200 p-4 text-[13px] text-red-800 flex items-start gap-3">
+            <Icon name="alertCircle" size={18} className="text-red-600 shrink-0 mt-0.5" />
+            <div>
+              <strong className="block font-black text-red-900 font-mono uppercase tracking-wide">
+                Please complete required fields
+              </strong>
+              <ul className="mt-1 list-disc list-inside space-y-0.5 text-[12px]">
+                {Object.values(errors).map((err, i) => (
+                  <li key={i}>{err}</li>
+                ))}
+              </ul>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* ------------------------------ step 2: details ---------------------- */}
-          {step === 1 && (
-            <div className="space-y-4">
-              <Field label="Listing title" required error={errors.title} hint="Say what it is and where it is.">
-                <Input
-                  value={form.title}
-                  onChange={(event) => set({ title: event.target.value })}
-                  placeholder="e.g. Driveway behind Sagar Petrol Pump"
-                />
-              </Field>
-
-              <Field label="What can guests expect?" hint="Mention surface, shade and how tight the entry is.">
-                <Textarea
-                  value={form.description}
-                  onChange={(event) => set({ description: event.target.value })}
-                  placeholder="Level covered driveway, 6 minutes walk to Ramkund main road…"
-                />
-              </Field>
-
-              <Field label="Vehicle types allowed" required>
-                <div className="space-y-2">
-                  {VEHICLE_TYPES.map((type) => {
-                    const active = form.vehicles.includes(type.id)
-                    return (
-                      <OptionTile
-                        key={type.id}
-                        active={active}
-                        onClick={() =>
-                          set({
-                            vehicles: active
-                              ? form.vehicles.filter((v) => v !== type.id)
-                              : [...form.vehicles, type.id],
-                          })
-                        }
-                        icon={<Icon name={VEHICLE_ICON[type.id]} size={17} />}
-                        title={type.label}
-                      />
-                    )
-                  })}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* =====================================================================
+              LEFT COLUMN: 6 WIZARD STEPS
+          ===================================================================== */}
+          <div className="lg:col-span-7 space-y-6">
+            {/* ----------------- STEP 1: LOCATION ----------------- */}
+            {step === 0 && (
+              <div className="rounded-3xl border border-[#E8E4DA] bg-white p-5 sm:p-6 shadow-2xs space-y-5">
+                <div>
+                  <h2 className="text-[18px] font-black text-[#17212B] font-heading">
+                    Space Location & Zone
+                  </h2>
+                  <p className="mt-1 text-[13px] text-[#525B60]">
+                    Place the exact compound pin and match with the nearest sacred ghat landmark.
+                  </p>
                 </div>
-              </Field>
 
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Vehicle capacity" required>
+                <HostLocationSection
+                  form={form}
+                  setForm={setForm}
+                  zones={zones}
+                  errors={errors}
+                />
+              </div>
+            )}
+
+            {/* ----------------- STEP 2: DETAILS ----------------- */}
+            {step === 1 && (
+              <div className="rounded-3xl border border-[#E8E4DA] bg-white p-5 sm:p-6 shadow-2xs space-y-5">
+                <div>
+                  <h2 className="text-[18px] font-black text-[#17212B] font-heading">
+                    Compound Details & Capacity
+                  </h2>
+                  <p className="mt-1 text-[13px] text-[#525B60]">
+                    Define vehicle accessibility, physical clearance, and plot surface.
+                  </p>
+                </div>
+
+                <Field label="Listing title" required error={errors.title} hint="Say what it is and what landmark it is near.">
                   <Input
-                    type="number"
-                    min={1}
-                    max={80}
-                    value={form.capacity}
-                    onChange={(event) => set({ capacity: Number(event.target.value) || 1 })}
+                    value={form.title}
+                    onChange={(event) => set({ title: event.target.value })}
+                    placeholder="e.g. Driveway behind Sagar Petrol Pump"
                   />
                 </Field>
-                <Field label="Height clearance">
-                  <Select value={form.clearanceM} onChange={(event) => set({ clearanceM: Number(event.target.value) })}>
-                    {[2, 2.4, 3, 4, 5, 6].map((value) => (
-                      <option key={value} value={value}>
-                        {value} m
+
+                <Field label="What can pilgrims expect?" hint="Describe gate approach, shaded areas, and security.">
+                  <Textarea
+                    value={form.description}
+                    onChange={(event) => set({ description: event.target.value })}
+                    placeholder="Level covered driveway right off Agra Road, 6 minutes walk to Ramkund main road…"
+                  />
+                </Field>
+
+                <Field label="Vehicle types allowed" required error={errors.vehicles}>
+                  <div className="space-y-2">
+                    {VEHICLE_TYPES.map((type) => {
+                      const active = form.vehicles.includes(type.id)
+                      return (
+                        <OptionTile
+                          key={type.id}
+                          active={active}
+                          onClick={() =>
+                            set({
+                              vehicles: active
+                                ? form.vehicles.filter((v) => v !== type.id)
+                                : [...form.vehicles, type.id],
+                            })
+                          }
+                          icon={<Icon name={VEHICLE_ICON[type.id]} size={17} />}
+                          title={type.label}
+                        />
+                      )
+                    })}
+                  </div>
+                </Field>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Vehicle capacity" required>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={80}
+                      value={form.capacity}
+                      onChange={(event) => set({ capacity: Number(event.target.value) || 1 })}
+                    />
+                  </Field>
+                  <Field label="Height clearance">
+                    <Select value={form.clearanceM} onChange={(event) => set({ clearanceM: Number(event.target.value) })}>
+                      {[2, 2.4, 3, 4, 5, 6].map((value) => (
+                        <option key={value} value={value}>
+                          {value} m
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+
+                <Field label="Surface">
+                  <Select value={form.surface} onChange={(event) => set({ surface: event.target.value })}>
+                    {SURFACES.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
                       </option>
                     ))}
                   </Select>
                 </Field>
+
+                <div>
+                  <p className="mb-2 text-[13px] font-bold text-[#17212B]">Compound Amenities</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {FEATURES.map((feature) => {
+                      const active = form.features.includes(feature.id)
+                      return (
+                        <button
+                          key={feature.id}
+                          type="button"
+                          onClick={() =>
+                            set({
+                              features: active
+                                ? form.features.filter((f) => f !== feature.id)
+                                : [...form.features, feature.id],
+                            })
+                          }
+                          className={cn(
+                            'flex items-center gap-2 rounded-xl border p-2.5 text-left text-[12px] font-bold transition-all active:scale-[0.98] cursor-pointer',
+                            active
+                              ? 'border-[#075B3D] bg-[#E7F1EA] text-[#075B3D]'
+                              : 'border-[#E8E4DA] bg-[#FAF7F2] text-[#17212B]',
+                          )}
+                        >
+                          <Icon name={FEATURE_ICON[feature.id]} size={15} />
+                          {feature.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
               </div>
+            )}
 
-              <Field label="Surface">
-                <Select value={form.surface} onChange={(event) => set({ surface: event.target.value })}>
-                  {SURFACES.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
+            {/* ----------------- STEP 3: PHOTOS (OPTIONAL REMINDER) ----------------- */}
+            {step === 2 && (
+              <div className="rounded-3xl border border-[#E8E4DA] bg-white p-5 sm:p-6 shadow-2xs space-y-5">
+                <div>
+                  <h2 className="text-[18px] font-black text-[#17212B] font-heading">
+                    Compound Photos
+                  </h2>
+                  {/* Explicit Guidance per Requirement 3.3 */}
+                  <div className="mt-2 rounded-2xl bg-[#E7F1EA] border border-[#075B3D]/25 p-3 text-[12.5px] font-semibold text-[#075B3D] flex items-center gap-2">
+                    <Icon name="shield" size={16} className="shrink-0" />
+                    <span>
+                      Photos are optional; your listing shows an authentic space-type icon in search results.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2.5">
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <div key={index} className="relative">
+                      <Photo
+                        src={index < form.photos ? photoUri(`${form.zoneId}-photo-${index}`, 'YOUR SPOT') : undefined}
+                        seed={`${form.zoneId}-photo-${index}`}
+                        label="YOUR SPOT"
+                        ratio="aspect-square"
+                        rounded="rounded-2xl"
+                        className={index < form.photos ? '' : 'opacity-40'}
+                      />
+                      {index < form.photos ? (
+                        <button
+                          type="button"
+                          aria-label="Remove photo"
+                          onClick={() => set({ photos: Math.max(0, form.photos - 1) })}
+                          className="absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-full bg-black/60 text-white hover:bg-black transition-colors cursor-pointer"
+                        >
+                          <Icon name="x" size={12} />
+                        </button>
+                      ) : null}
+                    </div>
                   ))}
-                </Select>
-              </Field>
 
-              <div>
-                <p className="mb-2 text-[13px] font-semibold">Amenities</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {FEATURES.map((feature) => {
-                    const active = form.features.includes(feature.id)
+                  <button
+                    type="button"
+                    onClick={() => set({ photos: Math.min(6, form.photos + 1) })}
+                    className="grid aspect-square place-items-center rounded-2xl border-2 border-dashed border-[#CBD5E1] text-[#6B7578] transition-colors hover:border-[#075B3D] hover:text-[#075B3D] cursor-pointer"
+                  >
+                    <span className="flex flex-col items-center gap-1">
+                      <Icon name="camera" size={20} />
+                      <span className="text-[11px] font-mono font-bold">{form.photos}/6 Photos</span>
+                    </span>
+                  </button>
+                </div>
+
+                <div className="rounded-2xl bg-[#FAF7F2] p-4 border border-[#E8E4DA] space-y-1.5 text-[12px] text-[#525B60]">
+                  <p className="font-bold text-[#17212B] flex items-center gap-1.5">
+                    <Icon name="info" size={14} className="text-[#075B3D]" />
+                    Helpful Photo Tips
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 pl-1 text-[11.5px]">
+                    <li>Capture the compound gate from the road so pilgrims easily spot it.</li>
+                    <li>Show clear pavement or parking ground surface.</li>
+                    <li>Avoid shots showing pilgrim vehicles with number plates visible.</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* ----------------- STEP 4: PRICING & ESTIMATOR ----------------- */}
+            {step === 3 && (
+              <div className="rounded-3xl border border-[#E8E4DA] bg-white p-5 sm:p-6 shadow-2xs space-y-5">
+                <div>
+                  <h2 className="text-[18px] font-black text-[#17212B] font-heading">
+                    Tariff Pricing & Host Earnings
+                  </h2>
+                  <p className="mt-1 text-[13px] text-[#525B60]">
+                    Set regulated hourly and daily parking tariffs for visiting pilgrims.
+                  </p>
+                </div>
+
+                <Field label="Billing Plan Allowed" required>
+                  <SegmentedTabs
+                    tabs={[
+                      { id: 'both', label: 'Hourly + Daily' },
+                      { id: 'hour', label: 'Hourly Only' },
+                      { id: 'day', label: 'Daily Only' },
+                    ]}
+                    value="both"
+                    onChange={() => {}}
+                  />
+                </Field>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Price per hour (₹)" required>
+                    <Input
+                      type="number"
+                      min={10}
+                      step={5}
+                      value={form.priceHour}
+                      onChange={(event) => set({ priceHour: Number(event.target.value) || 0 })}
+                    />
+                  </Field>
+                  <Field label="Price per day (₹)" required>
+                    <Input
+                      type="number"
+                      min={50}
+                      step={10}
+                      value={form.priceDay}
+                      onChange={(event) => set({ priceDay: Number(event.target.value) || 0 })}
+                    />
+                  </Field>
+                </div>
+
+                {/* Earnings Estimate Helper per Requirement 3.3 */}
+                <div className="rounded-2xl border border-[#075B3D]/30 bg-[#FAF7F2] p-5 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-[#E8E4DA] pb-2">
+                    <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#075B3D]">
+                      ESTIMATED FESTIVAL EARNINGS HELPER
+                    </span>
+                    <span className="text-[11px] font-bold text-[#075B3D]">
+                      94% Net Host Payout
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 text-[13px]">
+                    <div className="flex justify-between">
+                      <span className="text-[#6B7578]">8 hours daily booking (1 bay):</span>
+                      <span className="font-mono font-bold text-[#17212B]">
+                        {money(form.priceHour * 8)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#6B7578]">5-day Shahi Snan festival window (8 bays):</span>
+                      <span className="font-mono font-bold text-[#17212B]">
+                        {money(form.priceHour * 8 * 5 * Math.min(8, form.capacity))}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t border-[#E8E4DA] pt-2 text-[15px] font-black text-[#075B3D]">
+                      <span>Projected Host Settlement:</span>
+                      <span className="font-mono">
+                        {money(Math.round(form.priceHour * 8 * 5 * Math.min(8, form.capacity) * 0.94))}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-[#6B7578] italic pt-1">
+                    *Assumes average 8-hour daily mela reservation across 5 peak Snan festival dates with 94% direct bank settlement.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* ----------------- STEP 5: HOURS / AVAILABILITY ----------------- */}
+            {step === 4 && (
+              <div className="rounded-3xl border border-[#E8E4DA] bg-white p-5 sm:p-6 shadow-2xs space-y-5">
+                <div>
+                  <h2 className="text-[18px] font-black text-[#17212B] font-heading">
+                    Operating Hours & Gate Windows
+                  </h2>
+                  <p className="mt-1 text-[13px] text-[#525B60]">
+                    Select the pilgrimage periods when your gatekeeper or caretaker is on site.
+                  </p>
+                </div>
+
+                <div className="space-y-2.5">
+                  {TIME_WINDOWS.map((window) => {
+                    const active = form.windows.includes(window.id)
                     return (
                       <button
-                        key={feature.id}
+                        key={window.id}
                         type="button"
                         onClick={() =>
                           set({
-                            features: active
-                              ? form.features.filter((f) => f !== feature.id)
-                              : [...form.features, feature.id],
+                            windows: active
+                              ? form.windows.filter((w) => w !== window.id)
+                              : [...form.windows, window.id],
                           })
                         }
                         className={cn(
-                          'flex items-center gap-2 rounded-[12px] border p-2.5 text-left text-[12px] font-semibold transition-all active:scale-[0.98]',
-                          active ? 'border-accent bg-accent-soft text-accent' : 'border-line bg-surface text-text',
+                          'flex w-full items-center gap-3.5 rounded-2xl border p-3.5 text-left transition-all active:scale-[0.99] cursor-pointer',
+                          active
+                            ? 'border-[#075B3D] bg-[#E7F1EA]'
+                            : 'border-[#E8E4DA] bg-white hover:bg-[#FAF7F2]',
                         )}
                       >
-                        <Icon name={FEATURE_ICON[feature.id]} size={15} />
-                        {feature.label}
+                        <span
+                          className={cn(
+                            'grid size-10 shrink-0 place-items-center rounded-xl font-bold',
+                            active ? 'bg-[#075B3D] text-white' : 'bg-[#FAF7F2] text-[#6B7578]',
+                          )}
+                        >
+                          <Icon name={window.id === 'night' ? 'moon' : 'sun'} size={17} />
+                        </span>
+
+                        <div className="min-w-0 flex-1">
+                          <span className="block text-[14px] font-bold text-[#17212B]">
+                            {window.label}
+                          </span>
+                          <span className="block text-[12px] font-mono text-[#6B7578]">
+                            {window.from} – {window.to}
+                          </span>
+                        </div>
+
+                        {active && <Icon name="checkCircle" size={20} className="shrink-0 text-[#075B3D]" />}
                       </button>
                     )
                   })}
                 </div>
-              </div>
-            </div>
-          )}
 
-          {/* ------------------------------ step 3: photos ----------------------- */}
-          {step === 2 && (
-            <div className="space-y-4">
-              <div>
-                <p className="text-[13px] font-semibold">Photos</p>
-                <p className="mt-1 text-[12px] text-muted">
-                  Mela listings with 4+ photos get booked 2× more often. Add the gate, the surface and one wide shot.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                {Array.from({ length: 6 }).map((_, index) => (
-                  <div key={index} className="relative">
-                    <Photo
-                      src={index < form.photos ? photoUri(`${form.zoneId}-photo-${index}`, 'YOUR SPOT') : undefined}
-                      seed={`${form.zoneId}-photo-${index}`}
-                      label="YOUR SPOT"
-                      ratio="aspect-square"
-                      rounded="rounded-[12px]"
-                      className={index < form.photos ? '' : 'opacity-40'}
-                    />
-                    {index < form.photos ? (
-                      <button
-                        type="button"
-                        aria-label="Remove photo"
-                        onClick={() => set({ photos: form.photos - 1 })}
-                        className="absolute top-1 right-1 grid size-6 place-items-center rounded-full bg-black/50 text-white"
-                      >
-                        <Icon name="x" size={12} />
-                      </button>
-                    ) : null}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => set({ photos: Math.min(6, form.photos + 1) })}
-                  className="grid aspect-square place-items-center rounded-[12px] border-2 border-dashed border-line text-muted transition-colors hover:border-accent hover:text-accent"
-                >
-                  <span className="flex flex-col items-center gap-1">
-                    <Icon name="camera" size={20} />
-                    <span className="text-[11px] font-semibold">{form.photos}/6</span>
-                  </span>
-                </button>
-              </div>
-
-              <div className="rounded-[14px] bg-surface-sunken p-3.5">
-                <p className="flex items-center gap-2 text-[13px] font-semibold">
-                  <Icon name="info" size={15} className="text-muted" />
-                  Photo tips
-                </p>
-                <ul className="mt-2 space-y-1.5 text-[13px] text-muted">
-                  <li>· Shoot the gate from the road, not from inside the plot.</li>
-                  <li>· Include a photo of the parking surface so guests know what they get.</li>
-                  <li>· Avoid shots with other vehicles' number plates visible.</li>
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {/* ------------------------------ step 4: pricing ---------------------- */}
-          {step === 3 && (
-            <div className="space-y-4">
-              <Field label="Plan" required>
-                <SegmentedTabs
-                  tabs={[
-                    { id: 'both', label: 'Hourly + daily' },
-                    { id: 'hour', label: 'Hourly only' },
-                    { id: 'day', label: 'Daily only' },
-                  ]}
-                  value="both"
-                  onChange={() => {}}
-                />
-              </Field>
-
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Price per hour" required>
-                  <Input
-                    type="number"
-                    min={5}
-                    step={5}
-                    value={form.priceHour}
-                    onChange={(event) => set({ priceHour: Number(event.target.value) || 0 })}
-                  />
-                </Field>
-                <Field label="Price per day" required>
-                  <Input
-                    type="number"
-                    min={50}
-                    step={10}
-                    value={form.priceDay}
-                    onChange={(event) => set({ priceDay: Number(event.target.value) || 0 })}
+                <Field label="Special gatekeeper or access instructions" hint="Caretaker contact, barrier pass details, landmark cues.">
+                  <Textarea
+                    value={form.note}
+                    onChange={(event) => set({ note: event.target.value })}
+                    placeholder="Gate is unlocked from 04:30 AM, caretaker stays on site at compound entry."
                   />
                 </Field>
               </div>
+            )}
 
-              <div className="rounded-[var(--radius-card)] bg-surface p-4 card-shadow">
-                <p className="text-[13px] font-semibold">Earnings preview</p>
-                <div className="mt-3 space-y-2 text-[13px]">
-                  <div className="flex justify-between">
-                    <span className="text-muted">If fully booked for 8 hours</span>
-                    <span className="font-semibold">{money(form.priceHour * 8)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted">If fully booked for 3 days</span>
-                    <span className="font-semibold">{money(form.priceDay * 3)}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-line pt-2 text-[15px] font-bold">
-                    <span>Your cut per day (94%)</span>
-                    <span>{money(Math.round(form.priceDay * 0.94))}</span>
-                  </div>
-                </div>
-                <p className="mt-3 text-[12px] text-muted">
-                  Comparable spots in {zone?.name ?? 'this zone'} go for {money(form.priceHour - 10)}–
-                  {money(form.priceHour + 20)}/hr.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* ---------------------------- step 5: availability -------------------- */}
-          {step === 4 && (
-            <div className="space-y-4">
-              <div>
-                <p className="text-[13px] font-semibold">When can guests park?</p>
-                <p className="mt-1 text-[12px] text-muted">Pick the windows you can keep the gate open for.</p>
-              </div>
-
-              <div className="space-y-2">
-                {TIME_WINDOWS.map((window) => {
-                  const active = form.windows.includes(window.id)
-                  return (
-                    <button
-                      key={window.id}
-                      type="button"
-                      onClick={() =>
-                        set({
-                          windows: active
-                            ? form.windows.filter((w) => w !== window.id)
-                            : [...form.windows, window.id],
-                        })
-                      }
-                      className={cn(
-                        'flex w-full items-center gap-3 rounded-[14px] border p-3.5 text-left transition-all active:scale-[0.99]',
-                        active ? 'border-accent bg-accent-soft' : 'border-line bg-surface',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'grid size-9 shrink-0 place-items-center rounded-full',
-                          active ? 'bg-accent text-white' : 'bg-surface-sunken text-muted',
-                        )}
-                      >
-                        <Icon name={window.id === 'night' ? 'moon' : 'sun'} size={16} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[14px] font-semibold">{window.label}</span>
-                        <span className="mt-0.5 block text-[12px] text-muted">
-                          {window.from} – {window.to}
-                        </span>
-                      </span>
-                      {active && <Icon name="checkCircle" size={18} className="shrink-0 text-accent" />}
-                    </button>
-                  )
-                })}
-              </div>
-
-              <Field label="Anything the team should know?" hint="Gate codes, caretaker number, access restrictions.">
-                <Textarea
-                  value={form.note}
-                  onChange={(event) => set({ note: event.target.value })}
-                  placeholder="Gate is unlocked from 04:30, caretaker stays on site."
-                />
-              </Field>
-            </div>
-          )}
-
-          {/* ------------------------------ step 6: review ----------------------- */}
-          {step === 5 && (
-            <div className="space-y-4">
-              <div className="overflow-hidden rounded-[var(--radius-card)] bg-surface card-shadow">
-                <Photo seed={`${form.zoneId}-cover`} label={zone?.short} ratio="aspect-[16/9]" rounded="rounded-none" />
-                <div className="p-4">
-                  <h2 className="text-[17px] font-bold">{form.title || `${form.capacity}-spot parking`}</h2>
-                  <p className="mt-1 text-[13px] text-muted">
-                    {form.address || 'Address not set'} · {zone?.name}
+            {/* ----------------- STEP 6: REVIEW SUMMARY ----------------- */}
+            {step === 5 && (
+              <div className="rounded-3xl border border-[#E8E4DA] bg-white p-5 sm:p-6 shadow-2xs space-y-5">
+                <div>
+                  <h2 className="text-[18px] font-black text-[#17212B] font-heading">
+                    Review Your Listing
+                  </h2>
+                  <p className="mt-1 text-[13px] text-[#525B60]">
+                    Review compound attributes before sending to the field verification queue.
                   </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {form.vehicles.map((vehicle) => (
-                      <span
-                        key={vehicle}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-surface-sunken px-2.5 py-1 text-[12px] font-semibold"
-                      >
-                        <Icon name={VEHICLE_ICON[vehicle]} size={13} />
-                        {VEHICLE_TYPES.find((v) => v.id === vehicle)?.label}
-                      </span>
-                    ))}
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-sunken px-2.5 py-1 text-[12px] font-semibold">
-                      <Icon name="car" size={13} />
-                      {form.capacity} spots
-                    </span>
+                </div>
+
+                {/* Section 1: Location Summary */}
+                <div className="rounded-2xl border border-[#E8E4DA] bg-[#FAF7F2] p-4 space-y-2">
+                  <div className="flex items-center justify-between border-b border-[#E8E4DA] pb-2">
+                    <span className="font-bold text-[13px] text-[#17212B]">Location & Landmark</span>
+                    <button
+                      type="button"
+                      onClick={() => goTo(0)}
+                      className="text-[12px] font-bold text-[#075B3D] hover:underline"
+                    >
+                      Edit ↗
+                    </button>
                   </div>
+                  <SummaryRow label="Zone Sector" value={zone?.name} />
+                  <SummaryRow label="Gate Address" value={form.address || 'Address provided'} />
+                  <SummaryRow label="Nearest Landmark" value={form.nearestLandmark?.name || 'Ramkund'} />
+                </div>
+
+                {/* Section 2: Details Summary */}
+                <div className="rounded-2xl border border-[#E8E4DA] bg-[#FAF7F2] p-4 space-y-2">
+                  <div className="flex items-center justify-between border-b border-[#E8E4DA] pb-2">
+                    <span className="font-bold text-[13px] text-[#17212B]">Space Details</span>
+                    <button
+                      type="button"
+                      onClick={() => goTo(1)}
+                      className="text-[12px] font-bold text-[#075B3D] hover:underline"
+                    >
+                      Edit ↗
+                    </button>
+                  </div>
+                  <SummaryRow label="Title" value={form.title || 'Untitled'} />
+                  <SummaryRow label="Capacity" value={`${form.capacity} Bays`} />
+                  <SummaryRow label="Vehicles" value={form.vehicles.join(', ').toUpperCase()} />
+                  <SummaryRow label="Surface" value={form.surface} />
+                </div>
+
+                {/* Section 3: Pricing & Hours */}
+                <div className="rounded-2xl border border-[#E8E4DA] bg-[#FAF7F2] p-4 space-y-2">
+                  <div className="flex items-center justify-between border-b border-[#E8E4DA] pb-2">
+                    <span className="font-bold text-[13px] text-[#17212B]">Tariffs & Operating Hours</span>
+                    <button
+                      type="button"
+                      onClick={() => goTo(3)}
+                      className="text-[12px] font-bold text-[#075B3D] hover:underline"
+                    >
+                      Edit ↗
+                    </button>
+                  </div>
+                  <SummaryRow label="Hourly Tariff" value={`${money(form.priceHour)}/hr`} />
+                  <SummaryRow label="Daily Tariff" value={`${money(form.priceDay)}/day`} />
+                  <SummaryRow label="Active Windows" value={`${form.windows.length} periods active`} />
+                </div>
+
+                <div className="rounded-2xl bg-[#E7F1EA] p-4 text-[12px] text-[#075B3D] border border-[#075B3D]/25 space-y-1.5">
+                  <p className="font-bold">Next Steps After Submission:</p>
+                  <ol className="list-decimal list-inside space-y-1 text-[11.5px]">
+                    <li>Our field mobility inspector checks gate clearance.</li>
+                    <li>Spot is certified and issued an official Sthaanam QR Gate Pass.</li>
+                    <li>Listing goes live and accepts instant UPI reservations.</li>
+                  </ol>
                 </div>
               </div>
+            )}
+          </div>
 
-              <div className="rounded-[var(--radius-card)] bg-surface p-4 card-shadow">
-                <Row label="Rate" value={`${money(form.priceHour)}/hr · ${money(form.priceDay)}/day`} />
-                <Row label="Surface" value={form.surface} />
-                <Row label="Clearance" value={`${form.clearanceM} m`} />
-                <Row
-                  label="Windows"
-                  value={form.windows.map((w) => TIME_WINDOWS.find((t) => t.id === w)?.label).join(', ')}
-                />
-                <Row label="Amenities" value={`${form.features.length} selected`} />
-                <Row label="Photos" value={`${form.photos} uploaded`} />
-              </div>
-
-              <div className="rounded-[14px] bg-surface-sunken p-3.5">
-                <p className="text-[13px] font-semibold">What happens next</p>
-                <ol className="mt-2 space-y-1.5 text-[13px] text-muted">
-                  <li>1. We verify your ID and property/lease proof.</li>
-                  <li>2. Our team photographs the plot to match your listing.</li>
-                  <li>3. Listing goes live and you start getting booking requests.</li>
-                </ol>
-              </div>
-            </div>
-          )}
+          {/* =====================================================================
+              RIGHT COLUMN: LIVE STEP-2 DRIVER PREVIEW (DESKTOP)
+          ===================================================================== */}
+          <div className="hidden lg:block lg:col-span-5">
+            <LiveListingPreview form={form} zone={zone} />
+          </div>
         </div>
       </div>
 
-      {/* single primary CTA */}
-      <div className="fixed inset-x-0 bottom-0 z-[750] border-t border-line bg-surface/97 px-4 pt-3 pb-[calc(0.75rem+max(0.75rem,env(safe-area-inset-bottom)))] backdrop-blur-sm">
-        <div className="mx-auto flex max-w-2xl gap-3">
-          {step > 0 && (
-            <Button variant="outline" size="lg" onClick={() => goTo(step - 1)} className="shrink-0 px-6">
-              Back
+      {/* ----------------- 3. STICKY FOOTER ACTION STRIP ----------------- */}
+      <div className="fixed inset-x-0 bottom-0 z-[750] border-t border-[#E8E4DA] bg-white/95 px-4 pt-3 pb-[calc(0.75rem+max(0.75rem,env(safe-area-inset-bottom)))] backdrop-blur-md shadow-lg">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+          {/* Left: Back Button */}
+          <div>
+            {step > 0 ? (
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => goTo(step - 1)}
+                className="border-[#CBD5E1] bg-white hover:bg-[#FAF7F2] font-bold text-[13px] px-5 py-2.5 rounded-xl cursor-pointer"
+              >
+                ← Back
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => navigate('/host')}
+                className="border-[#CBD5E1] bg-white hover:bg-[#FAF7F2] font-bold text-[13px] px-5 py-2.5 rounded-xl cursor-pointer"
+              >
+                Cancel
+              </Button>
+            )}
+          </div>
+
+          {/* Right: Save Draft & Continue */}
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="md"
+              onClick={handleSaveDraft}
+              className="border-[#E8E4DA] bg-[#FAF7F2] hover:bg-[#E8E4DA] font-bold text-[13px] px-4 py-2.5 rounded-xl cursor-pointer"
+              icon={<Icon name="download" size={14} />}
+            >
+              Save Draft
             </Button>
-          )}
-          <Button
-            full
-            size="lg"
-            loading={submitting}
-            disabled={Object.keys(errors).length > 0}
-            onClick={() => (step === STEPS.length - 1 ? submit() : goTo(step + 1))}
-          >
-            {step === STEPS.length - 1 ? 'Submit for verification' : 'Continue'}
-          </Button>
+
+            <Button
+              size="md"
+              loading={submitting}
+              onClick={handleContinue}
+              className="bg-[#075B3D] hover:bg-[#064e34] text-white font-black text-[14px] uppercase tracking-wider px-7 py-3 rounded-xl shadow-md cursor-pointer"
+            >
+              {step === STEPS.length - 1 ? 'Submit for Verification' : 'Continue →'}
+            </Button>
+          </div>
         </div>
       </div>
     </PageShell>
   )
 }
 
-function Row({ label, value }) {
+function SummaryRow({ label, value }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-line py-2 last:border-b-0">
-      <span className="shrink-0 text-[13px] text-muted">{label}</span>
-      <span className="text-right text-[13px] font-semibold">{value}</span>
+    <div className="flex items-center justify-between gap-2 text-[12.5px] border-b border-[#E8E4DA] py-1.5 last:border-b-0">
+      <span className="text-[#6B7578]">{label}:</span>
+      <span className="font-bold text-[#17212B] font-mono truncate">{value}</span>
     </div>
   )
 }
@@ -574,13 +811,14 @@ function Row({ label, value }) {
 function validate(step, form) {
   if (step === 0) {
     const errors = {}
-    if (!form.address.trim()) errors.address = 'Add the full address so guests can reach the gate'
+    if (!form.address.trim()) errors.address = 'Add the full address so pilgrims can locate the gate'
+    if (!form.nearestLandmark) errors.nearestLandmark = 'Select a nearby landmark for pilgrim walking guidance'
     return errors
   }
   if (step === 1) {
     const errors = {}
-    if (!form.title.trim()) errors.title = 'Give the listing a clear title'
-    if (!form.vehicles.length) errors.vehicles = 'Select at least one vehicle type'
+    if (!form.title.trim()) errors.title = 'Give the listing a clear title (e.g. Driveway behind Sagar Petrol Pump)'
+    if (!form.vehicles.length) errors.vehicles = 'Select at least one vehicle type allowed'
     return errors
   }
   return {}

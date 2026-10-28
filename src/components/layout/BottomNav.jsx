@@ -1,30 +1,62 @@
+import { useMemo } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/cn'
 import Icon from '@/components/ui/Icon'
-
-const TABS = [
-  { to: '/', label: 'Home', icon: 'home', end: true },
-  { to: '/search', label: 'Search', icon: 'search' },
-  { to: '/scan', label: 'Scan QR', icon: 'qr', highlight: true },
-  { to: '/bookings', label: 'Bookings', icon: 'ticket' },
-  { to: '/host', label: 'Host', icon: 'wallet' },
-]
+import { useAuth } from '@/context/AuthContext'
 
 export default function BottomNav() {
   const { pathname } = useLocation()
-  const hidden = pathname.startsWith('/listing/') || pathname.startsWith('/admin')
+  const { user, isAuthenticated } = useAuth()
+  const role = (user?.role || '').toUpperCase()
+
+  const hidden =
+    pathname.startsWith('/listing/') ||
+    pathname.startsWith('/admin') ||
+    pathname === '/login' ||
+    pathname === '/signup'
+
+  const tabs = useMemo(() => {
+    if (!isAuthenticated) {
+      return [
+        { to: '/', label: 'Home', icon: 'home', end: true },
+        { to: '/search', label: 'Find Parking', icon: 'search' },
+        { to: '/login?from=%2Fapp', label: 'Bookings', icon: 'ticket' },
+        { to: '/scan', label: 'Scan QR', icon: 'qr' },
+        { to: '/login', label: 'Sign in', icon: 'user' },
+      ]
+    }
+
+    const list = [
+      { to: '/', label: 'Home', icon: 'home', end: true },
+      { to: '/search', label: 'Find Parking', icon: 'search' },
+      { to: '/scan', label: 'Scan QR', icon: 'qr' },
+    ]
+
+    if (role === 'ADMIN') {
+      list.push({ to: '/admin', label: 'Admin', icon: 'shield' })
+    } else if (role === 'HOST') {
+      list.push({ to: '/host', label: 'Host', icon: 'wallet' })
+    } else {
+      list.push({ to: '/app', label: 'Bookings', icon: 'ticket' })
+    }
+
+    return list
+  }, [isAuthenticated, role])
 
   return (
     <nav
       className={cn(
-        'fixed inset-x-0 bottom-0 z-[800] border-t border-line bg-surface/95 backdrop-blur-sm',
+        'fixed inset-x-0 bottom-0 z-[800] border-t border-[#17212B]/10 glass-panel shadow-[0_-2px_16px_rgba(23,33,43,0.06)]',
         'pb-[max(0.25rem,env(safe-area-inset-bottom))] transition-transform duration-300',
         'lg:hidden',
         hidden && 'translate-y-full',
       )}
     >
-      <ul className="grid grid-cols-5">
-        {TABS.map((tab) => (
+      <ul
+        className="grid"
+        style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+      >
+        {tabs.map((tab) => (
           <li key={tab.to}>
             <NavLink
               to={tab.to}
@@ -41,7 +73,7 @@ export default function BottomNav() {
                   <span
                     className={cn(
                       'grid h-7 w-12 place-items-center rounded-full transition-colors duration-200',
-                      isActive ? 'bg-[#EAF2EC] text-[#006B4F]' : '',
+                      isActive ? 'bg-[#006B4F]/10 text-[#006B4F]' : '',
                     )}
                   >
                     <Icon name={tab.icon} size={19} strokeWidth={isActive ? 2.3 : 1.8} />

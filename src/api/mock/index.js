@@ -84,6 +84,7 @@ export async function searchSpots(params = {}) {
     q = '',
     vehicle = 'all',
     features = [],
+    minPrice = null,
     maxPrice = null,
     plan = 'hour',
     instant = false,
@@ -91,6 +92,7 @@ export async function searchSpots(params = {}) {
     openNow = true,
     sort = 'recommended',
     origin = null,
+    radiusKm = null,
   } = params
 
   const originPoint = origin ?? (zone !== 'all' ? zoneById(zone)?.latlng : null)
@@ -100,16 +102,24 @@ export async function searchSpots(params = {}) {
     if (vehicle !== 'all' && !spot.vehicles.includes(vehicle)) return false
     if (instant && !spot.instantBook) return false
     if (onlyAvailable && spot.availability === 'full') return false
-    if (maxPrice != null) {
-      const from = plan === 'day' ? spot.priceDay : spot.priceHour
-      if (from > maxPrice) return false
-    }
+    const spotPrice = plan === 'day' ? spot.priceDay : spot.priceHour
+    if (minPrice != null && spotPrice < minPrice) return false
+    if (maxPrice != null && spotPrice > maxPrice) return false
     if (features.length && !features.every((f) => spot.features.includes(f))) return false
     if (openNow) {
-      const hour = new Date().getHours()
-      const [fromH] = spot.checkInFrom.split(':').map(Number)
-      const [toH] = spot.checkOutBy.split(':').map(Number)
-      if (hour < fromH || hour >= toH) return false
+      const is24x7 =
+        spot.checkInFrom === '00:00' &&
+        (spot.checkOutBy === '24:00' || spot.checkOutBy === '23:59' || spot.checkOutBy === '00:00')
+      if (!is24x7) {
+        const hour = new Date().getHours()
+        const [fromH] = spot.checkInFrom.split(':').map(Number)
+        const [toH] = spot.checkOutBy.split(':').map(Number)
+        if (toH > fromH) {
+          if (hour < fromH || hour > toH) return false
+        } else if (toH < fromH) {
+          if (hour < fromH && hour > toH) return false
+        }
+      }
     }
     return matchesQuery(spot, q)
   })
@@ -124,6 +134,10 @@ export async function searchSpots(params = {}) {
       host: null,
     }
   })
+
+  if (radiusKm != null) {
+    results = results.filter((spot) => spot.distanceKm <= radiusKm)
+  }
 
   results.sort(SORTERS[sort] ?? SORTERS.recommended)
   return clone(results)
@@ -169,9 +183,10 @@ export async function createBooking(payload) {
   const left = state.occupancy[spot.id] ?? spot.spotsLeft
   if (left <= 0) throw new Error('This listing just filled up. Try a waitlist spot instead.')
 
+  const isPending = Boolean(payload.paymentPending)
   const booking = {
-    id: uid('b'),
-    code: bookingCode(),
+    id: payload.id || uid('b'),
+    code: payload.code || bookingCode(),
     spotId: spot.id,
     hostId: spot.hostId,
     zoneId: spot.zoneId,
@@ -187,10 +202,19 @@ export async function createBooking(payload) {
     vehicleType: payload.vehicleType,
     plate: payload.plate,
     pin: checkInPin(),
-    status: payload.startISO && new Date(payload.startISO) <= new Date() ? 'active' : 'upcoming',
+    status: isPending
+      ? 'payment_pending'
+      : payload.startISO && new Date(payload.startISO) <= new Date()
+        ? 'active'
+        : 'upcoming',
+    paymentStatus: isPending ? 'pending' : 'paid',
+    paymentId: payload.paymentId ?? null,
+    paymentRef: payload.paymentRef ?? (isPending ? null : 'PAY_MOCK_INSTANT'),
+    holdExpiresAt: isPending ? (payload.holdExpiresAt || Date.now() + 5 * 60 * 1000) : null,
+    paidAt: isPending ? null : new Date().toISOString(),
     checkedInISO: null,
     checkedOutISO: null,
-    amount: payload.quote?.total ?? 0,
+    amount: payload.quote?.total ?? payload.amount ?? 0,
     createdISO: new Date().toISOString(),
     isMine: true,
   }
@@ -200,8 +224,62 @@ export async function createBooking(payload) {
   return clone(booking)
 }
 
+export async function confirmBookingPayment({ bookingId, paymentId, paymentRef, paidAt }) {
+  await wait(jitter(250))
+  const booking = state.bookings.find((b) => (bookingId && b.id === bookingId) || (paymentId && b.paymentId === paymentId))
+  if (!booking) throw new Error('Booking not found')
+
+  booking.paymentStatus = 'paid'
+  booking.paymentRef = paymentRef || `PAY_${Date.now().toString(36).toUpperCase()}`
+  booking.paidAt = paidAt || new Date().toISOString()
+  booking.status = booking.startISO && new Date(booking.startISO) <= new Date() ? 'active' : 'upcoming'
+  booking.holdExpiresAt = null
+
+  return clone(booking)
+}
+
+export async function cancelPendingBooking(bookingId) {
+  await wait(jitter(200))
+  const booking = state.bookings.find((b) => b.id === bookingId)
+  if (!booking) throw new Error('Booking not found')
+
+  booking.paymentStatus = 'cancelled'
+  booking.status = 'cancelled'
+  booking.cancelReason = 'Payment hold cancelled by user'
+  booking.cancelISO = new Date().toISOString()
+  booking.holdExpiresAt = null
+  state.occupancy[booking.spotId] = (state.occupancy[booking.spotId] ?? 0) + 1
+
+  return clone(booking)
+}
+
+export async function expirePendingBooking(bookingId) {
+  await wait(jitter(200))
+  const booking = state.bookings.find((b) => b.id === bookingId)
+  if (!booking) throw new Error('Booking not found')
+
+  booking.paymentStatus = 'expired'
+  booking.status = 'cancelled'
+  booking.cancelReason = '5-minute payment hold expired'
+  booking.cancelISO = new Date().toISOString()
+  booking.holdExpiresAt = null
+  state.occupancy[booking.spotId] = (state.occupancy[booking.spotId] ?? 0) + 1
+
+  return clone(booking)
+}
+
 export async function getMyBookings() {
   await wait(jitter(420))
+  // Auto-check expired bookings on retrieval
+  const now = Date.now()
+  state.bookings.forEach((b) => {
+    if (b.paymentStatus === 'pending' && b.holdExpiresAt && now > b.holdExpiresAt) {
+      b.paymentStatus = 'expired'
+      b.status = 'cancelled'
+      b.cancelReason = '5-minute payment hold expired'
+      state.occupancy[b.spotId] = (state.occupancy[b.spotId] ?? 0) + 1
+    }
+  })
   return clone(state.bookings.filter((b) => b.isMine).sort(sortByRecency))
 }
 
@@ -218,7 +296,7 @@ export async function cancelBooking(bookingId) {
 }
 
 function sortByRecency(a, b) {
-  return new Date(b.startISO) - new Date(a.startISO)
+  return new Date(b.startISO || b.createdISO) - new Date(a.startISO || a.createdISO)
 }
 
 /* ------------------------------------------------------------------ *
@@ -264,6 +342,16 @@ export async function setAccepting(spotId, accepting) {
   const meta = state.hostListings.find((l) => l.spotId === spotId)
   if (meta) meta.accepting = accepting
   return { spotId, accepting }
+}
+
+export async function updateHostListingPrice(spotId, { priceHour, priceDay }) {
+  await wait(200)
+  const spot = spotById(spotId)
+  if (spot) {
+    if (priceHour != null) spot.priceHour = priceHour
+    if (priceDay != null) spot.priceDay = priceDay
+  }
+  return { spotId, priceHour, priceDay }
 }
 
 export async function markCheckedIn(bookingId) {
@@ -594,7 +682,7 @@ export async function getSpotQr(spotId) {
   }
 }
 
-export async function regenerateSpotQr(spotId, reason) {
+export async function regenerateSpotQr(spotId) {
   await wait(350)
   const spot = spotById(spotId) || spots[0]
   const payload = { parking_id: spot.id, issued_at: new Date().toISOString(), nonce: Math.random().toString(36).slice(2), v: 1 }

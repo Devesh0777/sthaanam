@@ -8,6 +8,7 @@ import { qrPayload } from '@/lib/id'
 import { money, time, durationLabel } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import ParkingDemoModal from '@/components/demo/ParkingDemoModal'
+import BrandLogo from '@/components/ui/BrandLogo'
 
 /**
  * Format date in authentic heritage ticket format: "08 JUN 2027"
@@ -125,10 +126,12 @@ export default function DigitalParkingTicket({
   spot,
   onClose,
   showActions = true,
-  ticketState = 'CONFIRMED', // 'CONFIRMED' | 'ENTRY_VERIFIED' | 'PARKING_ACTIVE' | 'EXIT_VERIFIED' | 'COMPLETED'
+  ticketState = 'CONFIRMED', // 'CONFIRMED' | 'ENTRY_VERIFIED' | 'PARKING_ACTIVE' | 'OVERTIME' | 'EXIT_VERIFIED' | 'COMPLETED'
   isAnimatingCut = false,
-  entryTime = '10:42 PM',
+  entryTime = '10:42 AM',
   exitTime = '11:58 PM',
+  overtimeMinutes = 0,
+  overtimeCharge = 0,
   className = '',
 }) {
   const navigate = useNavigate()
@@ -136,6 +139,8 @@ export default function DigitalParkingTicket({
   const ticketRef = useRef(null)
   const [downloading, setDownloading] = useState(false)
   const [showDemoModal, setShowDemoModal] = useState(false)
+
+  const isOvertime = ticketState === 'OVERTIME' || overtimeMinutes > 0
 
   // Exit Cut State Machine: 'idle' | 'exit-verifying' | 'cutting' | 'separated' | 'completed'
   const [animState, setAnimState] = useState(() => {
@@ -178,14 +183,24 @@ export default function DigitalParkingTicket({
 
   // React to prop changes
   useEffect(() => {
+    let timer = null
     if (isAnimatingCut || ticketState === 'EXIT_VERIFIED') {
-      runExitCutSequence()
+      timer = setTimeout(() => {
+        runExitCutSequence()
+      }, 0)
     } else if (ticketState === 'COMPLETED') {
-      setAnimState('completed')
-      setCutProgress(100)
+      timer = setTimeout(() => {
+        setAnimState('completed')
+        setCutProgress(100)
+      }, 0)
     } else {
-      setAnimState('idle')
-      setCutProgress(0)
+      timer = setTimeout(() => {
+        setAnimState('idle')
+        setCutProgress(0)
+      }, 0)
+    }
+    return () => {
+      if (timer) clearTimeout(timer)
     }
   }, [isAnimatingCut, ticketState])
 
@@ -197,12 +212,12 @@ export default function DigitalParkingTicket({
     booking?.address || spot?.address || 'Sagar Colony, off Agra Road, Nashik'
   const distance = spot?.distanceM ?? booking?.distanceM ?? 230
   const hours = booking?.hours ?? 2
-  const startISO = booking?.startISO || booking?.start || new Date().toISOString()
+  const startISO = booking?.startISO || booking?.start || '2027-06-08T10:42:00.000Z'
   const endISO =
     booking?.endISO ||
     booking?.end ||
-    new Date(Date.now() + (hours || 2) * 3600_000).toISOString()
-  const amount = booking?.amount ?? spot?.priceHour * hours ?? 87
+    new Date(new Date(startISO).getTime() + (hours || 2) * 3600_000).toISOString()
+  const amount = booking?.amount ?? ((spot?.priceHour ? spot.priceHour * hours : 0) || 80)
   const hourlyRate = spot?.priceHour ?? Math.round(amount / (hours || 1))
   const plate = booking?.plate || 'MH 15 AB 1234'
   const passCode = booking?.code || 'NPC-CFLCH'
@@ -245,11 +260,11 @@ export default function DigitalParkingTicket({
 
   // Share Handler
   const handleShare = async () => {
-    const shareText = `🎫 KUMBH PARK DIGITAL PASS\nPass ID: ${passCode}\nSpot: ${spotTitle}\nVehicle: ${plate}\nTime: ${startTimeFormatted} (${dateFormatted})\nGate PIN: ${pin}`
+    const shareText = `🎫 STHAANAM DIGITAL PASS\nPass ID: ${passCode}\nSpot: ${spotTitle}\nVehicle: ${plate}\nTime: ${startTimeFormatted} (${dateFormatted})\nGate PIN: ${pin}`
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Kumbh Park Digital Parking Pass',
+          title: 'Sthaanam Digital Parking Pass',
           text: shareText,
           url: window.location.origin + '/bookings',
         })
@@ -274,6 +289,7 @@ export default function DigitalParkingTicket({
   const isEntryDone =
     ticketState === 'ENTRY_VERIFIED' ||
     ticketState === 'PARKING_ACTIVE' ||
+    ticketState === 'OVERTIME' ||
     ticketState === 'EXIT_VERIFIED' ||
     ticketState === 'COMPLETED' ||
     animState !== 'idle'
@@ -292,23 +308,28 @@ export default function DigitalParkingTicket({
               'inline-flex size-2.5 rounded-full animate-pulse',
               isSeparated
                 ? 'bg-slate-500'
-                : animState === 'cutting' || animState === 'exit-verifying'
+                : isOvertime || animState === 'cutting' || animState === 'exit-verifying'
                   ? 'bg-amber-500'
                   : isEntryDone
                     ? 'bg-emerald-500'
                     : 'bg-[#E9A83A]',
             )}
           />
-          <span className="text-[12px] font-mono font-black uppercase tracking-widest text-[#006B4F]">
+          <span className={cn(
+            'text-[12px] font-mono font-black uppercase tracking-widest',
+            isOvertime ? 'text-[#B47C10]' : 'text-[#006B4F]'
+          )}>
             {animState === 'exit-verifying'
               ? '✓ Exit Verified • Highlighting Perforation Seam'
               : animState === 'cutting'
                 ? '✂ Digital Laser Cutting In Progress...'
                 : isSeparated
-                  ? '✓ Completed Kumbh Parking Permit'
-                  : isEntryDone
-                    ? 'Active Gate Clearance • Entry Verified'
-                    : 'Official Kumbh Mela 2027 E-Permit'}
+                  ? '✓ Completed Sthaanam Parking Permit'
+                  : isOvertime
+                    ? '⚠ Overtime Parking • Period Exceeded'
+                    : isEntryDone
+                      ? 'Active Gate Clearance • Entry Verified'
+                      : 'Official Kumbh Mela 2027 E-Permit'}
           </span>
         </div>
 
@@ -337,20 +358,24 @@ export default function DigitalParkingTicket({
               'rounded-full px-3 py-0.5 text-[11px] font-black uppercase tracking-wider text-white shadow-xs transition-colors',
               isSeparated
                 ? 'bg-slate-800'
-                : animState === 'cutting'
-                  ? 'bg-amber-600'
-                  : isEntryDone
-                    ? 'bg-emerald-600'
-                    : 'bg-[#006B4F]',
+                : isOvertime
+                  ? 'bg-[#B47C10]'
+                  : animState === 'cutting'
+                    ? 'bg-amber-600'
+                    : isEntryDone
+                      ? 'bg-emerald-600'
+                      : 'bg-[#006B4F]',
             )}
           >
             {isSeparated
               ? '✓ Completed'
-              : animState === 'cutting'
-                ? '✂ Cutting'
-                : isEntryDone
-                  ? '✓ Entry Verified'
-                  : '✓ Confirmed'}
+              : isOvertime
+                ? '⚠ OVERTIME'
+                : animState === 'cutting'
+                  ? '✂ Cutting'
+                  : isEntryDone
+                    ? '✓ Entry Verified'
+                    : '✓ Confirmed'}
           </span>
         </div>
       </div>
@@ -373,14 +398,14 @@ export default function DigitalParkingTicket({
           <div
             className={cn(
               'ticket-main relative flex-1 p-5 sm:p-7 pb-6 flex flex-col justify-between overflow-hidden min-h-[300px]',
-              'rounded-t-[24px] md:rounded-l-[28px] md:rounded-tr-none border border-[#D5C9B3] bg-[#FAF6EE] shadow-[0_12px_36px_-8px_rgba(23,33,43,0.15)]',
-              'z-10 transition-all duration-300'
+              'rounded-t-[24px] md:rounded-l-[28px] md:rounded-tr-none border border-[#006341]/25 bg-[#FAF7F2] shadow-[0_12px_36px_-8px_rgba(0,99,65,0.12)]',
+              'z-10 transition-all duration-300 print:bg-white print:border-black'
             )}
             style={{
               backgroundImage: `
-                radial-gradient(ellipse at top left, rgba(233,168,58,0.12) 0%, transparent 55%),
-                radial-gradient(ellipse at bottom right, rgba(139,46,33,0.08) 0%, transparent 60%),
-                linear-gradient(180deg, #FAF7F0 0%, #F4ECE0 100%)
+                radial-gradient(ellipse at top left, rgba(233,168,58,0.14) 0%, transparent 55%),
+                radial-gradient(ellipse at bottom right, rgba(0,99,65,0.08) 0%, transparent 60%),
+                linear-gradient(180deg, #FAF7F2 0%, #F5EFE6 100%)
               `,
             }}
           >
@@ -390,7 +415,7 @@ export default function DigitalParkingTicket({
                 <div className="size-7 rounded-full bg-[#17212B] border-2 border-[#E9A83A] shadow-inner grid place-items-center">
                   <span className="text-[10px] font-black text-[#E9A83A]">✓</span>
                 </div>
-                <span className="text-[9.5px] font-mono font-black text-[#006B4F] bg-white/95 px-2 py-0.5 rounded border border-[#006B4F]/30 uppercase shadow-xs">
+                <span className="text-[9.5px] font-mono font-black text-[#006341] bg-white/95 px-2 py-0.5 rounded border border-[#006341]/30 uppercase shadow-xs">
                   PUNCHED {entryTime}
                 </span>
               </div>
@@ -401,7 +426,7 @@ export default function DigitalParkingTicket({
               {[0, 1, 2, 3].map((i) => (
                 <div
                   key={`left-notch-${i}`}
-                  className="size-3.5 -ml-2 rounded-full bg-[#EFE9DC] border-r border-[#D5C9B3] shadow-inner"
+                  className="size-3.5 -ml-2 rounded-full bg-[#FAF7F2] border-r border-[#D5C9B3] shadow-inner"
                 />
               ))}
             </div>
@@ -426,10 +451,10 @@ export default function DigitalParkingTicket({
 
             {/* Content Header */}
             <div className="relative z-10 space-y-3.5">
-              <div className="flex items-center justify-between text-[10.5px] sm:text-[12px] font-bold tracking-[0.22em] text-[#8B2E21] uppercase border-b border-[#E2D8C5] pb-2 font-serif">
-                <span className="whitespace-nowrap flex items-center gap-1.5 shrink-0">
-                  <span className="size-1.5 rounded-full bg-[#E9A83A]" />
-                  MAHA KUMBH MELA 2027
+              <div className="flex items-center justify-between text-[10.5px] sm:text-[12px] font-bold tracking-[0.22em] text-[#006341] uppercase border-b border-[#E2D8C5] pb-2 font-serif">
+                <span className="whitespace-nowrap flex items-center gap-2 shrink-0">
+                  <BrandLogo size={18} variant="small" />
+                  <span>MAHA KUMBH MELA 2027</span>
                 </span>
                 <span className="text-[#66706B] font-sans font-medium text-[9.5px] sm:text-[11px] whitespace-nowrap tracking-wider">
                   NASHIK • TRIMBAKESHWAR
@@ -444,13 +469,29 @@ export default function DigitalParkingTicket({
                   {spotAddress}
                 </p>
               </div>
+
+              {/* OVERTIME WARNING STRIP */}
+              {isOvertime && (
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-[#FFF8E7] border border-[#E6B84A]/60 px-3 py-2 text-[11.5px] font-bold text-[#B47C10] shadow-xs animate-[pop-in_0.2s_var(--ease-out-expo)]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-[#E6B84A] animate-pulse" />
+                    <span>⚠ OVERTIME PARKING</span>
+                    <span className="font-mono text-[#8C5B00]">({overtimeMinutes > 0 ? `${overtimeMinutes} MIN OVER` : 'TIME EXPIRED'})</span>
+                  </div>
+                  {overtimeCharge > 0 && (
+                    <span className="font-mono font-black text-[#B47C10] bg-white/80 px-2 py-0.5 rounded border border-[#E6B84A]/40">
+                      +{money(overtimeCharge)} EXTRA
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 4 Info Metric Pills */}
             <div className="relative z-10 mt-6 pt-3.5 border-t border-[#DED4BF] grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 bg-[#FAF7F0]/85 backdrop-blur-[2px] rounded-2xl p-2.5 sm:p-3 border border-[#E8DFC9]/70">
               {/* DISTANCE */}
               <div className="flex items-center gap-2 sm:gap-2.5">
-                <div className="grid size-8 sm:size-9 shrink-0 place-items-center rounded-full bg-[#8B2E21] text-white shadow-xs">
+                <div className="grid size-8 sm:size-9 shrink-0 place-items-center rounded-full bg-[#006341] text-white shadow-xs">
                   <Icon name="pin" size={15} />
                 </div>
                 <div className="min-w-0">
@@ -484,14 +525,14 @@ export default function DigitalParkingTicket({
 
               {/* AMOUNT */}
               <div className="flex items-center gap-2 sm:gap-2.5">
-                <div className="grid size-8 sm:size-9 shrink-0 place-items-center rounded-full bg-[#006B4F] text-white shadow-xs font-bold text-[13px]">
+                <div className="grid size-8 sm:size-9 shrink-0 place-items-center rounded-full bg-[#006341] text-white shadow-xs font-bold text-[13px]">
                   ₹
                 </div>
                 <div className="min-w-0">
                   <span className="block text-[9px] sm:text-[9.5px] font-extrabold uppercase tracking-wider text-[#8A7E72] truncate">
                     AMOUNT
                   </span>
-                  <span className="block text-[14px] sm:text-[15px] font-black text-[#006B4F] font-mono leading-tight">
+                  <span className="block text-[14px] sm:text-[15px] font-black text-[#006341] font-mono leading-tight">
                     {money(amount)}
                   </span>
                   <span className="block text-[9px] font-medium text-[#66706B] truncate">
@@ -512,7 +553,7 @@ export default function DigitalParkingTicket({
                   <span className="block text-[12px] sm:text-[13px] font-black text-[#17212B] uppercase font-mono tracking-wide leading-tight truncate">
                     {plate}
                   </span>
-                  <span className="block text-[9px] font-bold text-[#006B4F] truncate">BAY CONFIRMED</span>
+                  <span className="block text-[9px] font-bold text-[#006341] truncate">BAY CONFIRMED</span>
                 </div>
               </div>
             </div>
@@ -530,17 +571,17 @@ export default function DigitalParkingTicket({
           <div
             className={cn(
               'ticket-qr relative md:w-[250px] p-5 sm:p-6 text-center text-white flex flex-col justify-between items-center overflow-hidden shrink-0',
-              'rounded-b-[24px] md:rounded-r-[28px] md:rounded-bl-none border border-[#9A3525]',
-              'z-20 transition-all duration-300 ease-out',
+              'rounded-b-[24px] md:rounded-r-[28px] md:rounded-bl-none border border-[#006341]/40',
+              'z-20 transition-all duration-300 ease-out print:bg-white print:border-black print:text-black',
               isSeparated
                 ? 'translate-y-4 md:translate-y-0 md:translate-x-5 shadow-[-14px_0_32px_rgba(0,0,0,0.32)] ring-1 ring-amber-500/20'
                 : 'translate-x-0 translate-y-0 shadow-[0_12px_36px_-8px_rgba(23,33,43,0.15)]'
             )}
             style={{
-              backgroundColor: '#7A2418',
+              backgroundColor: '#0F2A1E',
               backgroundImage: `
-                radial-gradient(circle at top right, rgba(233,168,58,0.3) 0%, transparent 60%),
-                linear-gradient(165deg, #8B2E21 0%, #641D14 100%)
+                radial-gradient(circle at top right, rgba(233,168,58,0.25) 0%, transparent 60%),
+                linear-gradient(165deg, #006341 0%, #082E20 100%)
               `,
             }}
           >
@@ -557,7 +598,7 @@ export default function DigitalParkingTicket({
               {[0, 1, 2, 3].map((i) => (
                 <div
                   key={`right-notch-${i}`}
-                  className="size-3.5 -mr-2 rounded-full bg-[#EFE9DC] border-l border-[#D5C9B3] shadow-inner"
+                  className="size-3.5 -mr-2 rounded-full bg-[#FAF7F2] border-l border-[#D5C9B3] shadow-inner"
                 />
               ))}
             </div>
@@ -567,13 +608,13 @@ export default function DigitalParkingTicket({
               <h3 className="text-[15px] sm:text-[16px] font-black tracking-[0.22em] text-[#F7F3EA] uppercase font-serif whitespace-nowrap">
                 ENTRY PASS
               </h3>
-              <p className="text-[9px] font-bold tracking-[0.18em] text-[#E9A83A] uppercase font-sans whitespace-nowrap">
+              <p className="text-[9px] font-bold tracking-[0.18em] text-[#FFD900] uppercase font-sans whitespace-nowrap">
                 KUMBH MELA 2027 • NASHIK
               </p>
             </div>
 
-            {/* Large High-Contrast QR Code Card */}
-            <div className="relative z-10 my-3 p-2 bg-white rounded-xl shadow-md border-2 border-[#FAF6EE]/30">
+            {/* SOLID White Tile with Quiet Zone (Phase 2 Requirement 7) */}
+            <div className="relative z-10 my-3 p-3 bg-white rounded-xl shadow-md border-2 border-white ring-1 ring-black/10">
               <QRCode value={qrData} size={135} className="p-0 border-0 shadow-none rounded-lg" />
             </div>
 
@@ -584,7 +625,7 @@ export default function DigitalParkingTicket({
               </p>
 
               <div className="border-t border-b border-white/20 py-1.5 px-2">
-                <span className="block text-[14px] font-black tracking-[0.2em] text-[#E9A83A] font-mono leading-none">
+                <span className="block text-[14px] font-black tracking-[0.2em] text-[#FFD900] font-mono leading-none">
                   {passCode}
                 </span>
                 <span className="block text-[8px] font-bold uppercase tracking-widest text-white/70 mt-0.5 font-sans">
@@ -594,10 +635,67 @@ export default function DigitalParkingTicket({
 
               <div className="text-[10px] font-black tracking-wider text-white/90 uppercase font-mono">
                 <span>{dateFormatted}</span>
-                <span className="mx-1.5 text-[#E9A83A]">•</span>
+                <span className="mx-1.5 text-[#FFD900]">•</span>
                 <span>{startTimeFormatted}</span>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Official Sthaanam Payment Receipt Stub */}
+      <div className="mx-auto max-w-[840px] rounded-2xl border border-[#006B4F]/25 glass-panel p-4 shadow-sm print:bg-white print:border-black">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#075B3D]/15 pb-2.5">
+          <div className="flex items-center gap-2.5">
+            <BrandLogo size={28} variant="print" />
+            <div>
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#075B3D] block">
+                Payment Receipt • Instant UPI Settlement
+              </span>
+              <h4 className="text-[14px] font-black text-[#17212B]">
+                Tariff Paid: {money(amount)} (Fully Settled)
+              </h4>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="rounded-md bg-[#075B3D] px-2 py-0.5 text-[10px] font-black uppercase text-white font-mono">
+              STATUS: PAID
+            </span>
+            <button
+              type="button"
+              onClick={handleDownload}
+              className="inline-flex items-center gap-1 rounded-lg border border-[#075B3D]/30 bg-white px-2.5 py-1 text-[11px] font-bold text-[#075B3D] hover:bg-[#FAF7F2] transition-colors cursor-pointer"
+            >
+              <Icon name="ticket" size={13} />
+              <span>Print Receipt</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2.5 text-[11px]">
+          <div>
+            <span className="text-[#6B6B6B] block text-[10px] uppercase font-bold">Payment Ref</span>
+            <span className="font-mono font-bold text-[#17212B] truncate block">
+              {booking?.paymentRef || 'PAY_UPI_CONFIRMED'}
+            </span>
+          </div>
+          <div>
+            <span className="text-[#6B6B6B] block text-[10px] uppercase font-bold">Payment Method</span>
+            <span className="font-bold text-[#075B3D] block">
+              UPI Direct QR
+            </span>
+          </div>
+          <div>
+            <span className="text-[#6B6B6B] block text-[10px] uppercase font-bold">Paid At</span>
+            <span className="font-mono font-semibold text-[#17212B] block">
+              {booking?.paidAt ? time(booking.paidAt) : time(new Date().toISOString())}
+            </span>
+          </div>
+          <div>
+            <span className="text-[#6B6B6B] block text-[10px] uppercase font-bold">Merchant</span>
+            <span className="font-bold text-[#17212B] block">
+              Sthaanam Mela Parking
+            </span>
           </div>
         </div>
       </div>
